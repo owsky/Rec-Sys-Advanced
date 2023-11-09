@@ -20,9 +20,9 @@ class MF:
         lr: float = 0.009,
         reg: float = 0.002,
         batch_size: int = 8,
-        seed: int | None = None,
         lr_decay_factor: float = 0.9,
         max_grad_norm: float | None = 1.0,
+        seed: int | None = None,
     ):
         num_users, num_items = R.shape
         self.lr = lr
@@ -69,20 +69,18 @@ class MF:
     # Returns a list containing the results of the loss function per each prediction
     def _compute_prediction_errors(
         self,
-        user_item_matrix: NDArray[np.float64],
+        test_set: coo_array,
         error_function: Callable[[float, float], float],
     ) -> List[float]:
         errors = []
-        users, items = np.nonzero(user_item_matrix)
-        for user_id, item_id in zip(users, items):
-            if user_item_matrix[user_id, item_id] != 0:
-                predicted_rating = self.predict(user_id, item_id)
-                true_rating = float(user_item_matrix[user_id, item_id])
-                errors.append(error_function(true_rating, predicted_rating))
+        for r, u, i in zip(test_set.data, test_set.row, test_set.col):
+            predicted_rating = self.predict(u, i)
+            true_rating = float(r)
+            errors.append(error_function(true_rating, predicted_rating))
         return errors
 
     # Returns the Mean Absolute Error accuracy metric for the given test set
-    def accuracy_mae(self, user_item_matrix: NDArray[np.float64]) -> float:
+    def accuracy_mae(self, user_item_matrix: coo_array) -> float:
         errors = self._compute_prediction_errors(
             user_item_matrix, lambda t, p: abs(t - p)
         )
@@ -90,7 +88,7 @@ class MF:
         return mae
 
     # Returns the Root Mean Square Error accuracy metric for the given test set
-    def accuracy_rmse(self, user_item_matrix: NDArray[np.float64]) -> float:
+    def accuracy_rmse(self, user_item_matrix: coo_array) -> float:
         errors = self._compute_prediction_errors(
             user_item_matrix, lambda t, p: (t - p) ** 2
         )
