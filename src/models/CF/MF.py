@@ -3,6 +3,7 @@ import numpy as np
 from numpy.typing import NDArray
 from typing import List, Callable
 from scipy.sparse import coo_array
+from utils import RandomSingleton
 
 
 # Matrix Factorization approach for Collaborative Filtering
@@ -32,17 +33,18 @@ class MF:
         self.epochs = epochs
         self.batch_size = batch_size
 
-        if seed is not None:
-            np.random.seed(seed=seed)
-
-        self.P = np.random.normal(loc=0, scale=0.1, size=(num_users, n_factors))
-        self.Q = np.random.normal(loc=0, scale=0.1, size=(num_items, n_factors))
+        self.P = RandomSingleton.get_random_normal(
+            loc=0, scale=0.1, size=(num_users, n_factors)
+        )
+        self.Q = RandomSingleton.get_random_normal(
+            loc=0, scale=0.1, size=(num_items, n_factors)
+        )
 
         data = list(zip(R.row, R.col, R.data))
 
         for _ in range(self.epochs):
             self.lr *= self.lr_decay_factor
-            np.random.shuffle(data)
+            RandomSingleton.shuffle(data)
 
             for i in range(0, len(data), self.batch_size):
                 batch = data[i : i + self.batch_size]
