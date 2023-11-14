@@ -6,8 +6,7 @@ from scipy.sparse import coo_array
 
 # Partition the dataframe according to the "by" function parameter
 def _partition_df(df: DataFrameGroupBy, by: Callable) -> pd.DataFrame:
-    df_applied: pd.DataFrame = df.apply(by)  # type: ignore because Python types suck
-    return df_applied.reset_index(drop=True)
+    return df.apply(by).reset_index(drop=True)  # type: ignore because Python types suck
 
 
 # Convert the dataframe into a user-item ratings matrix while preserving all item_ids

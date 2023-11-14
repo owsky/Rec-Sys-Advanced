@@ -1,10 +1,13 @@
 import random
 from typing import AbstractSet, Sequence
-
 import numpy as np
 
 
 class RandomSingleton:
+    """
+    Singleton class that wraps both Python and Numpy's random number generators, optionally with a seed
+    """
+
     _rng = None
 
     @staticmethod
@@ -21,15 +24,9 @@ class RandomSingleton:
     @staticmethod
     def get_random_normal(loc: int, scale: float, size: tuple[int, int]):
         RandomSingleton.initialize()
-        if RandomSingleton._rng is not None:
-            return RandomSingleton._rng.normal(loc, scale, size)
-        else:
-            raise RuntimeError("RNG not initialized")
+        return RandomSingleton._rng.normal(loc, scale, size)  # type: ignore
 
     @staticmethod
     def shuffle(data):
         RandomSingleton.initialize()
-        if RandomSingleton._rng is not None:
-            RandomSingleton._rng.shuffle(data)
-        else:
-            raise RuntimeError("RNG not initialized")
+        RandomSingleton._rng.shuffle(data)  # type: ignore

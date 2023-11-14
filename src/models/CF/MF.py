@@ -1,17 +1,15 @@
-import math
+from itertools import product
 import numpy as np
 from numpy.typing import NDArray
-from typing import List, Callable
 from scipy.sparse import coo_array
+from .CF_Base import CF_Base
 from utils import RandomSingleton
 
 
-# Matrix Factorization approach for Collaborative Filtering
-# Uses sparse arrays and minibatch gradient descent
-class MF:
-    def __init__(self):
-        self.P: NDArray[np.float64] = np.array([])
-        self.Q: NDArray[np.float64] = np.array([])
+class MF(CF_Base):
+    """
+    Matrix Factorization approach for Collaborative Filtering. Uses sparse arrays and minibatch gradient descent
+    """
 
     def fit(
         self,
@@ -23,7 +21,6 @@ class MF:
         batch_size: int = 8,
         lr_decay_factor: float = 0.9,
         max_grad_norm: float | None = 1.0,
-        seed: int | None = None,
     ):
         num_users, num_items = R.shape
         self.lr = lr
@@ -32,6 +29,7 @@ class MF:
         self.reg = reg
         self.epochs = epochs
         self.batch_size = batch_size
+        self.train_set = R
 
         self.P = RandomSingleton.get_random_normal(
             loc=0, scale=0.1, size=(num_users, n_factors)
@@ -53,73 +51,69 @@ class MF:
                 ratings = np.array([rating for _, _, rating in batch])
 
                 predictions = np.sum(self.P[users, :] * self.Q[items, :], axis=1)
-                errors = ratings - predictions
-                self._update_features(
-                    errors=errors[:, np.newaxis],
-                    user=users,
-                    item=items,
-                    reg=self.reg,
-                    lr=self.lr,
-                    max_grad_norm=self.max_grad_norm,
-                )
+                errors = (ratings - predictions)[:, np.newaxis]
 
-    def predict(self, u: int, i: int) -> float:
-        if self.P.size == 0 or self.Q.size == 0:
-            raise Exception("Model untrained, invoke fit before predicting")
-        return np.dot(self.P[u, :], self.Q[i, :].T)
+                grad_P = 2 * lr * (errors * self.Q[items, :] - reg * self.P[users, :])
+                grad_Q = 2 * lr * (errors * self.P[users, :] - reg * self.Q[items, :])
 
-    # Returns a list containing the results of the loss function per each prediction
-    def _compute_prediction_errors(
-        self,
-        test_set: coo_array,
-        error_function: Callable[[float, float], float],
-    ) -> List[float]:
-        errors = []
-        for r, u, i in zip(test_set.data, test_set.row, test_set.col):
-            predicted_rating = self.predict(u, i)
-            true_rating = float(r)
-            errors.append(error_function(true_rating, predicted_rating))
-        return errors
+                self._clip_gradients(grad_P, max_grad_norm)
+                self._clip_gradients(grad_Q, max_grad_norm)
 
-    # Returns the Mean Absolute Error accuracy metric for the given test set
-    def accuracy_mae(self, user_item_matrix: coo_array) -> float:
-        errors = self._compute_prediction_errors(
-            user_item_matrix, lambda t, p: abs(t - p)
-        )
-        mae = float(np.mean(errors))
-        return mae
+                self.P[users, :] += grad_P
+                self.Q[items, :] += grad_Q
 
-    # Returns the Root Mean Square Error accuracy metric for the given test set
-    def accuracy_rmse(self, user_item_matrix: coo_array) -> float:
-        errors = self._compute_prediction_errors(
-            user_item_matrix, lambda t, p: (t - p) ** 2
-        )
-        rmse = math.sqrt(np.mean(errors))
-        return rmse
-
-    # Avoids overflows in case that gradients diverge during training
     def _clip_gradients(
         self, gradient: NDArray[np.float64], max_grad_norm: float | None
     ):
+        """
+        Avoid overflows in case the gradients diverge during training
+        """
         if max_grad_norm is not None:
             norm = np.linalg.norm(gradient)
             if norm > max_grad_norm:
                 gradient *= max_grad_norm / norm
 
-    def _update_features(
+    def cross_validate_hyperparameters(
         self,
-        errors: float | NDArray[np.float64],
-        user: int | NDArray[np.int64],
-        item: int | NDArray[np.int64],
-        reg: float,
-        lr: float,
-        max_grad_norm: float | None,
+        train_set: coo_array,
+        test_set: coo_array,
+        n_factors_range: list[int],
+        epochs_range: list[int],
+        lr_range: list[float],
+        reg_range: list[float],
+        batch_size_range: list[int],
+        lr_decay_factor_range: list[float],
     ):
-        grad_P = 2 * lr * (errors * self.Q[item, :] - reg * self.P[user, :])
-        grad_Q = 2 * lr * (errors * self.P[user, :] - reg * self.Q[item, :])
+        """
+        Define the hyperparameter ranges required for crossvalidation, compute the product and invoke the super class' method
+        """
+        prod = product(
+            n_factors_range,
+            epochs_range,
+            lr_range,
+            reg_range,
+            batch_size_range,
+            lr_decay_factor_range,
+        )
+        return self._generic_cv_hyper("MF", train_set, test_set, prod)
 
-        self._clip_gradients(grad_P, max_grad_norm)
-        self._clip_gradients(grad_Q, max_grad_norm)
 
-        self.P[user, :] += grad_P
-        self.Q[item, :] += grad_Q
+def cv_hyper_mf_helper(train_set: coo_array, test_set: coo_array):
+    print("Grid Search Cross Validation for MF")
+    mf = MF()
+    n_factors_range = [8, 10, 12]
+    epochs_range = [10, 20, 30]
+    lr_range = [0.005, 0.009, 0.015]
+    reg_range = [0.001, 0.002, 0.003]
+    batch_size_range = [2, 4, 8, 16]
+    lr_decay_factor_range = [0.5, 0.9, 0.99]
+    mf.cross_validate_hyperparameters(
+        train_set,
+        test_set,
+        n_factors_range,
+        epochs_range,
+        lr_range,
+        reg_range,
+        batch_size_range,
+        lr_decay_factor_range,
+    )

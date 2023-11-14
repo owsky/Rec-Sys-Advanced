@@ -1,16 +1,4 @@
-from collections import namedtuple
-from .MF import MF
-
-MF_Params = namedtuple(
-    "MF_Params",
-    [
-        "n_factors",
-        "epochs",
-        "lr",
-        "reg",
-        "batch_size",
-        "seed",
-        "lr_decay_factor",
-        "max_grad_norm",
-    ],
-)
+from .CF_Base import CF_Base
+from .MF import MF, cv_hyper_mf_helper
+from .ALS import ALS, cv_hyper_als_helper
+from .ALS_MR import ALS_MR, cv_hyper_als_mr_helper
