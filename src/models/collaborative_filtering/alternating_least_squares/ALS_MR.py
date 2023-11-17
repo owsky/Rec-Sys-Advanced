@@ -1,6 +1,6 @@
 from itertools import product
 from typing import Literal
-from .CF_Base import CF_Base
+from ..CF_Base import CF_Base
 import numpy as np
 from pyspark import RDD, SparkContext
 from utils import RandomSingleton

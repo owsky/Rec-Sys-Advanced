@@ -2,7 +2,7 @@ from itertools import product
 import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import coo_array
-from .CF_Base import CF_Base
+from ..CF_Base import CF_Base
 from utils import RandomSingleton
 
 
@@ -13,7 +13,7 @@ class MF(CF_Base):
 
     def fit(
         self,
-        R: coo_array,
+        train_set: coo_array,
         n_factors: int = 10,
         epochs: int = 20,
         lr: float = 0.009,
@@ -22,14 +22,14 @@ class MF(CF_Base):
         lr_decay_factor: float = 0.9,
         max_grad_norm: float | None = 1.0,
     ):
-        num_users, num_items = R.shape
+        num_users, num_items = train_set.shape
         self.lr = lr
         self.lr_decay_factor = lr_decay_factor
         self.max_grad_norm = max_grad_norm
         self.reg = reg
         self.epochs = epochs
         self.batch_size = batch_size
-        self.train_set = R
+        self.train_set = train_set
 
         self.P = RandomSingleton.get_random_normal(
             loc=0, scale=0.1, size=(num_users, n_factors)
@@ -38,7 +38,7 @@ class MF(CF_Base):
             loc=0, scale=0.1, size=(num_items, n_factors)
         )
 
-        data = list(zip(R.row, R.col, R.data))
+        data = list(zip(train_set.row, train_set.col, train_set.data))
 
         for _ in range(self.epochs):
             self.lr *= self.lr_decay_factor
@@ -69,7 +69,7 @@ class MF(CF_Base):
         Avoid overflows in case the gradients diverge during training
         """
         if max_grad_norm is not None:
-            norm = np.linalg.norm(gradient)
+            norm = float(np.linalg.norm(gradient))
             if norm > max_grad_norm:
                 gradient *= max_grad_norm / norm
 

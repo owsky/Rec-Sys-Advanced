@@ -1,47 +1,30 @@
-from data import train_test_split, load_data
-from models import (
-    MF,
-    ALS_MR,
-    ALS,
-    cv_hyper_mf_helper,
-    cv_hyper_als_helper,
-    cv_hyper_als_mr_helper,
-)
-from pyspark_model import pyspark_als
+from data import load_ratings, load_item_features
+from data import train_test_split
 from utils import RandomSingleton
+from models import Nearest_neighbors
+
+RandomSingleton.initialize(seed=42)
 
 
 def main():
-    RandomSingleton.initialize(seed=42)
-    data = load_data("data/u.data")
-    train_set, test_set = train_test_split(data)
+    ratings = load_ratings("data/u.data")
 
-    # Cross validation
-    cv_hyper_mf_helper(train_set, test_set)
-    cv_hyper_als_helper(train_set, test_set)
-    cv_hyper_als_mr_helper(train_set, test_set)
+    train, test = train_test_split(df=ratings, keep_ids=False)
 
-    # Matrix Factorization
-    mf = MF()
-    mf.fit(train_set)
-    print(f"MF MAE: {mf.accuracy_mae(test_set)}, MF RMSE: {mf.accuracy_rmse(test_set)}")
+    item_features = load_item_features("data/u.item")
+    # item_features_reduced = item_features.to_numpy()[:, 5:]
+    # user_features = load_user_features("data/u.user")
 
-    # Alternating Least Squares
-    als = ALS()
-    als.fit(train_set=train_set, n_factors=2, epochs=10, reg=0.8)
-    print(
-        f"ALS MAE:  {als.accuracy_mae(test_set)}, ALS RMSE:  {als.accuracy_rmse(test_set)}"
-    )
+    model = Nearest_neighbors()
+    model.fit(train, "user", "pearson")
+    indices = model.get_recommendations(1, 5)
+    print(indices)
 
-    # Map Reduce Alternating Least Squares using PySpark
-    als_mr = ALS_MR()
-    als_mr.fit(train_set=train_set, n_factors=2, epochs=10, reg=0.8)
-    print(
-        f"ALS_MR MAE:  {als_mr.accuracy_mae(test_set)}, ALS RMSE:  {als_mr.accuracy_rmse(test_set)}"
-    )
-
-    # Bundled Alternating Least Squares from PySpark
-    pyspark_als(train_set, test_set)
+    # sim = compute_similarity_matrix(item_features_reduced)
+    # print(f"0th element: {item_features.to_numpy()[0]}")
+    # indices = retrieve_top_k_for_item(sim, 0, 5)
+    # for index in indices:
+    #     print(item_features.to_numpy()[index])
 
 
 if __name__ == "__main__":
