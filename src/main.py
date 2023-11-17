@@ -16,7 +16,7 @@ def main():
     # user_features = load_user_features("data/u.user")
 
     model = Nearest_neighbors()
-    model.fit(train, "user", "pearson")
+    model.fit(train.todense(), "user", "pearson")
     indices = model.get_recommendations(1, 5)
     print(indices)
 

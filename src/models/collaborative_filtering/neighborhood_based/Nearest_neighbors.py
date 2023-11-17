@@ -2,27 +2,31 @@ from typing import Literal
 from joblib import Parallel, delayed
 import numpy as np
 from numpy.typing import NDArray
-from scipy.sparse import coo_array
 from tqdm import tqdm
 
 
 class Nearest_neighbors:
+    """
+    Nearest Neighbors collaborative filtering model. Requires a dense ratings matrix due to performance limitations.
+    """
+
     def fit(
         self,
-        ratings: coo_array,
+        ratings: NDArray,
         kind: Literal["user", "item"],
         similarity: Literal["pearson", "cosine"],
     ):
-        rat = ratings.todense()
-        dim = rat.shape[0] if kind == "user" else rat.shape[1]
+        dim = ratings.shape[0] if kind == "user" else ratings.shape[1]
         user_means = (
-            None if similarity == "pearson" else np.mean(rat, axis=0, keepdims=True)
+            None
+            if similarity == "pearson"
+            else ratings.mean(axis=0)  # np.mean(ratings, axis=0, keepdims=True)
         )
         self.similarity_matrix = np.zeros((dim, dim), dtype=np.float64)
 
-        results = Parallel(n_jobs=-1)(
+        results = Parallel(n_jobs=-1, backend="loky")(
             delayed(self.calculate_similarity)(
-                rat, user_means, i, dim, kind, similarity
+                ratings, user_means, i, dim, kind, similarity
             )
             for i in tqdm(range(dim))
         )
@@ -32,20 +36,20 @@ class Nearest_neighbors:
 
     def calculate_similarity(
         self,
-        rat,
-        user_means,
-        i,
-        dim,
+        ratings: NDArray,
+        user_means: NDArray,
+        i: int,
+        dim: int,
         kind: Literal["user", "item"],
         similarity: Literal["pearson", "cosine"],
     ):
         result_row = np.zeros(dim)
         for j in range(dim):
             if similarity == "pearson":
-                result_row[j] = self.pearson_correlation(rat, i, j, kind)
+                result_row[j] = self.pearson_correlation(ratings, i, j, kind)
             else:
                 result_row[j] = self.adjusted_cosine_similarity(
-                    rat, user_means, i, j, kind
+                    ratings, user_means, i, j, kind
                 )
         return result_row
 
@@ -77,7 +81,11 @@ class Nearest_neighbors:
         return common_ratings_i, common_ratings_j
 
     def pearson_correlation(
-        self, ratings: NDArray, i: int, j: int, kind: Literal["user", "item"]
+        self,
+        ratings: NDArray,
+        i: int,
+        j: int,
+        kind: Literal["user", "item"],
     ) -> float:
         common_ratings = self._get_common_ratings(ratings, i, j, kind)
         if len(common_ratings) == 0:
@@ -111,8 +119,8 @@ class Nearest_neighbors:
 
         # Compute the cosine similarity
         similarity = np.dot(common_ratings_i, common_ratings_j) / (
-            float(np.linalg.norm(common_ratings_i))
-            * float(np.linalg.norm(common_ratings_j))
+            float(np.linalg.norm(common_ratings_i, ord=2))
+            * float(np.linalg.norm(common_ratings_j, ord=2))
         )
 
         # If there are NaN values in the similarity, return 0 (no similarity)

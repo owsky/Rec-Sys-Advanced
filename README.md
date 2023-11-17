@@ -10,8 +10,6 @@
     - ✅ Sequential
     - ✅ Map Reduce
     - ✅ Cross-validation
-  - ⏹️ Matrix Factorization
-    - ⏹️ Cross-validation
   - ⏹️ Neighborhood Based
     - ✅ User-based
     - ✅ Item-based
