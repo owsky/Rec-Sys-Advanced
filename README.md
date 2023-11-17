@@ -1,9 +1,10 @@
 # Rec-Sys-Advanced
 
 ## TODO
-- ⏹️ Non-personalized recommendation
-  - ⏹️ Highest rated
-  - ⏹️ Most popular
+- ✅ Ratings matrix ID mapping
+- ✅ Non-personalized recommendation
+  - ✅ Highest rated
+  - ✅ Most popular
 - ⏹️ Content Based
 - ✅ Collaborative Filtering
   - ✅ Alternating Least Squares
