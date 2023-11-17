@@ -1,12 +1,9 @@
-from pandas import DataFrame
+from scipy.sparse import coo_array
 from models import MF, ALS_MR, ALS
-from data import train_test_split
 from pyspark_model import pyspark_als
 
 
-def models_train(ratings: DataFrame):
-    train_set, test_set = train_test_split(ratings)
-
+def models_train(train_set: coo_array, test_set: coo_array):
     # Matrix Factorization
     mf = MF()
     mf.fit(train_set)

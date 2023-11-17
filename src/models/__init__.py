@@ -7,3 +7,4 @@ from .collaborative_filtering import (
     cv_hyper_als_mr_helper,
     Nearest_neighbors,
 )
+from .non_personalized import most_popular, highest_rated
