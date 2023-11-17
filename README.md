@@ -5,7 +5,7 @@
 - ✅ Non-personalized recommendation
   - ✅ Highest rated
   - ✅ Most popular
-- ⏹️ Content Based
+- ✅ Content Based
 - ✅ Collaborative Filtering
   - ✅ Alternating Least Squares
     - ✅ Sequential

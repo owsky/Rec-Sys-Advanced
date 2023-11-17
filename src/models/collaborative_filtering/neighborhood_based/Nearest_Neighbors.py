@@ -5,7 +5,7 @@ from numpy.typing import NDArray
 from tqdm import tqdm
 
 
-class Nearest_neighbors:
+class Nearest_Neighbors:
     """
     Nearest Neighbors collaborative filtering model. Requires a dense ratings matrix due to performance limitations.
     """
