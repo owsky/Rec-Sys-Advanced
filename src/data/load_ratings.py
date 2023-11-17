@@ -6,9 +6,11 @@ from scipy.sparse import coo_array
 
 class RatingsReader:
     def _read_file(self, ratings_path: str) -> NDArray[np.float64]:
+        """
+        Read file into memory converting strings to integers and return a numpy array
+        """
         with open(ratings_path, "r") as f:
             ratings = []
-            ratings.append([-5, -3, 4, 881250949])
             for line in f:
                 user_id, item_id, rating, timestamp = line.rstrip().split("\t")
                 ratings.append(
@@ -18,7 +20,12 @@ class RatingsReader:
         ratings = np.array(ratings)
         return ratings
 
-    def _train_test_split(self, ratings: NDArray, test_size: float):
+    def _train_test_split(
+        self, ratings: NDArray[np.float64], test_size: float
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+        """
+        Split dataset into train and test according to test size and timestamps
+        """
         ratings[ratings[:, 3].argsort()]  # Sort by timestamp
 
         rows = ratings.shape[0]
@@ -28,7 +35,12 @@ class RatingsReader:
         test = ratings[indices:, :]
         return train, test
 
-    def _create_ratings_matrix(self, ratings: NDArray, shape: tuple[int, int]):
+    def _create_ratings_matrix(
+        self, ratings: NDArray[np.float64], shape: tuple[int, int]
+    ) -> NDArray[np.float64]:
+        """
+        Create user-item ratings matrix of the given shape with the ratings
+        """
         ratings_matrix = np.zeros(shape)
         for user, item, rating, _ in ratings:
             user_index = self.id_to_index(user, "user")
@@ -36,7 +48,7 @@ class RatingsReader:
             ratings_matrix[user_index][item_index] = rating
         return ratings_matrix
 
-    def _handle_id_ranges(self, ratings: NDArray):
+    def _handle_id_ranges(self, ratings: NDArray[np.float64]) -> tuple[int, int]:
         min_rows = ratings[:, 0].min()
         min_cols = ratings[:, 1].min()
         max_rows = ratings[:, 0].max()
