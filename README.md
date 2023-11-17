@@ -10,10 +10,7 @@
     - ✅ Sequential
     - ✅ Map Reduce
     - ✅ Cross-validation
-  - ⏹️ Neighborhood Based
+  - ✅ Neighborhood Based
     - ✅ User-based
     - ✅ Item-based
-    - ⏹️ Rating normalization
-      - ⏹️Mean-centering
-      - ⏹️ Z-score
 - ⏹️ Hybrid
