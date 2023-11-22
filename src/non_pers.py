@@ -1,17 +1,14 @@
-from pandas import DataFrame
-from scipy.sparse import coo_array
-from data import RatingsReader, get_movie_info
-
-from models import highest_rated, most_popular
+from data import Data
+from models import Non_Personalized
 
 
-def non_pers(ratings: coo_array, item_features: DataFrame, reader: RatingsReader):
-    rec_id = highest_rated(ratings.tocsc(), reader.id_to_index(13, "user"))
-    if rec_id:
-        rec_movie = get_movie_info(item_features, rec_id)
-        print(f"Movie recommendation for user 13: {rec_movie}")
+def non_pers(data: Data):
+    model = Non_Personalized()
+    model.fit(data)
+    print("Recommending highest rated movies to user 13:")
+    hr_movies = model.get_n_highest_rated(13)
+    data.pretty_print_movies_df(hr_movies)
 
-    rec_id = most_popular(ratings.tocsc(), reader.id_to_index(13, "user"))
-    if rec_id:
-        rec_movie = get_movie_info(item_features, rec_id)
-        print(f"Movie recommendation for user 13: {rec_movie}")
+    print("Recommending most popular movies to user 13:")
+    mp_movies = model.get_n_most_popular(13)
+    data.pretty_print_movies_df(mp_movies)

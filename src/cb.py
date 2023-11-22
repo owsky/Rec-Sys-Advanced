@@ -1,10 +1,9 @@
-from pandas import DataFrame
+from data import Data
 from models import Content_Based
 
 
-def cb(item_features_df: DataFrame):
+def cb(data: Data):
     model = Content_Based()
-    model.fit(item_features_df)
-    print("Getting recommendations for items similar to:")
-    print(model.retrieve_movies(201))
-    print(model.get_recommendations(201))
+    model.fit(data)
+    user_id = data.id_to_index(13, "user")
+    print(model.get_top_n_recommendations(user_id, 10))

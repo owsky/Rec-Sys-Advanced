@@ -1,9 +1,11 @@
-from scipy.sparse import coo_array
-from models import MF, ALS_MR, ALS
+from data import Data
+from models import MF, ALS_MR, ALS, Nearest_Neighbors
 from pyspark_model import pyspark_als
 
 
-def models_train(train_set: coo_array, test_set: coo_array):
+def cf(data: Data):
+    train_set, test_set = (data.ratings, data.test_ratings)
+
     # Matrix Factorization
     mf = MF()
     mf.fit(train_set)
@@ -25,3 +27,8 @@ def models_train(train_set: coo_array, test_set: coo_array):
 
     # Bundled Alternating Least Squares from PySpark
     pyspark_als(train_set, test_set)
+
+    # Nearest Neighbors
+    nn = Nearest_Neighbors()
+    nn.fit(data, "user", "cosine")
+    data.pretty_print_movies_df(nn.top_n_recommendations(user_id=13, n=10))

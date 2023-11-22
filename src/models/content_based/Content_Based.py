@@ -2,6 +2,8 @@ from pandas import DataFrame
 from sklearn.neighbors import NearestNeighbors
 import numpy as np
 from numpy.typing import NDArray
+from data import Data
+from ..non_personalized import Non_Personalized
 
 
 class Content_Based:
@@ -10,42 +12,74 @@ class Content_Based:
     as metric. Then queries the tree for the k most similar items given an item id.
     """
 
-    def fit(self, items_df: DataFrame):
-        self.items_df = items_df
-        item_features = self._extract_features(self.items_df)
+    def fit(self, data: Data):
+        self.data = data
+        item_features = self._extract_features(self.data.items)
         self.model = NearestNeighbors(algorithm="ball_tree", metric="jaccard")
         self.model.fit(item_features)
+        self.np = Non_Personalized()
+        self.np.fit(data)
 
-    def get_recommendations(self, movie_id: int, k=5):
+    def get_n_movies_similar_to(self, movie_id: int, n=10):
         """
         Given a movie id and optionally a number k of neighbors, return the neighbors
         of the selected movie
         """
-        movie = self.items_df[self.items_df["movie_id"] == movie_id]
+        movie = self.data.items[self.data.items["movie_id"] == movie_id]
         features = self._extract_features(movie)
-        distances, indices = self.model.kneighbors(features, n_neighbors=k + 1)
+        distances, indices = self.model.kneighbors(features, n_neighbors=n + 1)
         indices = indices + 1
 
         mask = indices.flatten() != movie_id
         indices = indices.flatten()[mask]
         distances = distances.flatten()[mask]
-        return self.retrieve_movies(indices)
+        return self.data.get_movies_from_ids(indices)
 
-    def _extract_features(self, row_df: DataFrame):
+    def _extract_features(self, row_df: DataFrame) -> NDArray[np.int64]:
         """
         Compute the item features by slicing off the unneeded information
         """
         return row_df.iloc[:, 3:].values
 
-    def retrieve_movies(self, movie_ids: int | NDArray[np.int64]) -> DataFrame:
+    def get_top_n_recommendations(self, user_id: int, n=10) -> DataFrame:
         """
-        Given a movie id or an array of ids, retrieve the full items information from
-        the training dataframe, sorted by the order of the ids
+        Given a user id and, optionally, a number n of recommendations, retrieve n recommendations
+        for the user
+        """
 
-        """
-        indices = [movie_ids] if isinstance(movie_ids, int) else movie_ids.flatten()
-        result_df = self.items_df[self.items_df["movie_id"].isin(indices)]
-        result_df = result_df.set_index("movie_id")
-        result_df = result_df.reindex(indices)
-        result_df = result_df.reset_index()
-        return result_df
+        # Extract the ratings provided by the user
+        user_ratings = self.data.ratings.data[
+            self.data.ratings.row == self.data.id_to_index(user_id, "user")
+        ]
+        average_rating = user_ratings.mean()
+        s = self._extract_features(self.data.items).shape[1]
+        user_profile = np.zeros((s), dtype=bool)
+
+        user_interactions = []
+        how_many = 5
+        for index, rating in enumerate(sorted(user_ratings, reverse=True)):
+            if rating == 0:
+                break
+            movie_id = self.data.index_to_id(index, "movie")
+            user_interactions.append(movie_id)
+            if rating >= average_rating and how_many > 0:
+                movie_genres = self._extract_features(
+                    self.data.get_movies_from_ids(movie_id)
+                )
+                user_profile = np.bitwise_or(user_profile, movie_genres.astype(bool))
+                how_many -= 1
+
+        if np.sum(user_profile) == 0:
+            return self.np.get_n_most_popular(user_id, n)
+
+        # Find similar items based on the user profile
+        distances, indices = self.model.kneighbors(
+            user_profile, n_neighbors=n + len(user_interactions)
+        )
+
+        # Remove from indices the ids found in user_interactions
+        indices = np.array(
+            [id for id in indices.flatten() if id not in user_interactions]
+        )[:n]
+
+        return self.data.get_movies_from_ids(indices)
