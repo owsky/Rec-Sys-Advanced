@@ -12,7 +12,7 @@ class Non_Personalized:
 
     def fit(self, data: Data):
         self.data = data
-        self.ratings = self.data.ratings.tocsc()
+        self.ratings = self.data.train.tocsc()
         self.average_ratings = self.ratings.mean(axis=0)
 
         pop = []

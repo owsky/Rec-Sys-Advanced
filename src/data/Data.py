@@ -16,16 +16,10 @@ class Data:
         self,
         movies_path: str,
         ratings_path: str,
-        ratings_test_size: float | None = None,
+        ratings_test_size: float = 0.2,
     ):
-        loaded = self._load_ratings(ratings_path, ratings_test_size)
-        if isinstance(loaded, tuple):
-            self.ratings = loaded[0]
-            self.test_ratings = loaded[1]
-        else:
-            self.ratings = loaded
-
-        self.items = self._load_movies(movies_path)
+        self._load_ratings(ratings_path, ratings_test_size)
+        self._load_movies(movies_path)
 
     def _read_ratings_file(self, ratings_path: str) -> NDArray[np.float64]:
         """
@@ -113,8 +107,8 @@ class Data:
         return np.array(means)
 
     def _load_ratings(
-        self, ratings_path: str, test_size: float | None = None
-    ) -> tuple[coo_array, coo_array] | coo_array:
+        self, ratings_path: str, test_size: float
+    ) -> tuple[coo_array, coo_array]:
         """
         Load the ratings from file, optionally partition into train and test datasets by timestamp,
         and then create the user-item ratings matrices with sparse representations.
@@ -123,23 +117,13 @@ class Data:
 
         ratings_matrix_shape = self._handle_id_ranges(ratings)
 
-        if test_size is not None:
-            train, test = self._train_test_split(ratings, test_size)
-            train_matrix = self._create_ratings_matrix(train, ratings_matrix_shape)
-            test_matrix = self._create_ratings_matrix(test, ratings_matrix_shape)
-            self.average_user_rating = self._compute_average_rating(
-                train_matrix.tocsr(), 0
-            )
-            self.average_item_rating = self._compute_average_rating(
-                train_matrix.tocsc(), 1
-            )
+        train, test = self._train_test_split(ratings, test_size)
+        self.train = self._create_ratings_matrix(train, ratings_matrix_shape)
+        self.test = self._create_ratings_matrix(test, ratings_matrix_shape)
+        self.average_user_rating = self._compute_average_rating(self.train.tocsr(), 0)
+        self.average_item_rating = self._compute_average_rating(self.train.tocsc(), 1)
 
-            return train_matrix, test_matrix
-        else:
-            matrix = self._create_ratings_matrix(ratings, ratings_matrix_shape)
-            self.average_user_rating = self._compute_average_rating(matrix.tocsr(), 0)
-            self.average_item_rating = self._compute_average_rating(matrix.tocsc(), 1)
-            return matrix
+        return self.train, self.test
 
     def id_to_index(self, id: int, kind: Literal["user", "movie"]) -> int:
         """
@@ -155,7 +139,7 @@ class Data:
         offset = self.offset_rows if kind == "user" else self.offset_cols
         return index + offset + 1
 
-    def _load_movies(self, movies_path: str) -> DataFrame:
+    def _load_movies(self, movies_path: str) -> None:
         """
         Load the movies information as DataFrame
         """
@@ -194,8 +178,7 @@ class Data:
             encoding="iso-8859-1",
             on_bad_lines="warn",
         )
-        data = data.drop(["video_release_date", "IMDb_URL"], axis=1)
-        return data
+        self.items = data.drop(["video_release_date", "IMDb_URL"], axis=1)
 
     def get_movies_from_ids(self, movie_ids: int | NDArray[np.int64]) -> DataFrame:
         """

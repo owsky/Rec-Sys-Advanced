@@ -48,8 +48,8 @@ class Content_Based:
         """
 
         # Extract the ratings provided by the user
-        user_ratings = self.data.ratings.data[
-            self.data.ratings.row == self.data.id_to_index(user_id, "user")
+        user_ratings = self.data.train.data[
+            self.data.train.row == self.data.id_to_index(user_id, "user")
         ]
         average_rating = user_ratings.mean()
         s = self._extract_features(self.data.items).shape[1]

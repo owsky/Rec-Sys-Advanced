@@ -1,14 +1,16 @@
 from math import sqrt
-from typing import Literal
+from typing import Any, Callable, Literal
 from joblib import Parallel, delayed
 import numpy as np
 from numpy.typing import NDArray
-from pandas import DataFrame
 from tqdm import tqdm
 from data import Data
+from scipy.stats import pearsonr
 
 
 class Nearest_Neighbors:
+    errors: list[float] | None = None
+
     def fit(
         self,
         data: Data,
@@ -21,36 +23,20 @@ class Nearest_Neighbors:
         for recommendations is adopted.
         """
         self.data = data
-        self.ratings = data.ratings.todense().astype(np.float64)
-        self.adj_ratings = self.ratings.copy()
+        self.test = data.test.todense().astype(np.float64)
+        self.ratings = data.train.todense().astype(np.float64)
         self.kind = kind
         self.similarity = similarity
         if kind == "user":
-            dim = data.ratings.shape[0]
+            dim = data.train.shape[0]
         elif kind == "item":
-            dim = data.ratings.shape[1]
+            dim = data.train.shape[1]
         else:
-            raise RuntimeError("Wrong value for argument kind")
+            raise RuntimeError("Wrong value for parameter kind")
         self.similarity_matrix = np.zeros((dim, dim), dtype=np.float64)
 
-        # Precompute centering of ratings by subtracting the mean of the users' ratings
-        if similarity == "cosine":
-            rows, cols = self.ratings.shape
-            for i in range(rows):
-                for j in range(cols):
-                    if self.ratings[i, j] != 0:
-                        self.adj_ratings[i, j] -= data.average_user_rating[i]
-        elif similarity == "pearson":
-            rows, cols = self.ratings.shape
-            for i in range(rows):
-                for j in range(cols):
-                    if self.ratings[i, j] != 0:
-                        self.adj_ratings[i, j] -= data.average_item_rating[j]
-        else:
-            raise RuntimeError(f"{similarity} similarity metric not implement")
-
         # Compute the similarity matrix in parallel
-        results = Parallel(n_jobs=-1, backend="loky")(
+        results = Parallel(n_jobs=-1)(
             delayed(self.calculate_similarity)(i, dim)
             for i in tqdm(range(dim), desc="Computing similarities")
         )
@@ -59,8 +45,7 @@ class Nearest_Neighbors:
         for index, result in enumerate(results):
             self.similarity_matrix[index, :] = result
 
-        # Copy the top half of the similarity matrix into the bottom half, alongside
-        # the main diagonal
+        # Copy the top half of the similarity matrix into the bottom half, alongside the main diagonal
         rows, cols = self.similarity_matrix.shape
         for i in range(rows):
             for j in range(i + 1, cols):
@@ -88,11 +73,11 @@ class Nearest_Neighbors:
         """
         # Extract the total user or item ratings
         if self.kind == "user":
-            ratings_i = self.adj_ratings[i, :]
-            ratings_j = self.adj_ratings[j, :]
+            ratings_i = self.ratings[i, :]
+            ratings_j = self.ratings[j, :]
         else:
-            ratings_i = self.adj_ratings[:, i]
-            ratings_j = self.adj_ratings[:, j]
+            ratings_i = self.ratings[:, i]
+            ratings_j = self.ratings[:, j]
 
         # Find the indices where both users have non-zero ratings
         common_ratings_mask = (ratings_i != 0) & (ratings_j != 0)
@@ -110,10 +95,9 @@ class Nearest_Neighbors:
             return ()
         return common_ratings_i, common_ratings_j
 
-    # TODO try to normalize the correlation by the number of common users/items
     def pearson_correlation(self, i: int, j: int) -> float:
         """
-        Compute the Pearson Correlation between either items i and j or users i and j
+        Compute the Pearson Correlation between either the items i and j or ther users i and j
         """
 
         # Extract the common ratings between i and j
@@ -123,138 +107,140 @@ class Nearest_Neighbors:
 
         common_ratings_i, common_ratings_j = common_ratings
 
-        num = float(np.dot(common_ratings_i, common_ratings_j))
-        den_i = float(np.sum(common_ratings_i**2))
-        den_j = float(np.sum(common_ratings_j**2))
-        den = sqrt(den_i * den_j)
-        if den == 0:
-            return 0.0
-        return num / den
+        return pearsonr(
+            common_ratings_i - np.mean(common_ratings_i),
+            common_ratings_j - np.mean(common_ratings_j),
+        ).correlation
 
     def adjusted_cosine_similarity(self, i: int, j: int) -> float:
         """
         Compute the Adjusted Cosine Similarity between either items i and j or users i and j
         """
 
-        # Extract the common ratings
+        # Extract the common ratings between i and j
         common_ratings = self._get_common_ratings(i, j)
-
-        # If there are no common ratings then return zero for non correlation
         if len(common_ratings) == 0:
             return 0.0
 
-        # Compute the cosine similarity
         common_ratings_i, common_ratings_j = common_ratings
 
-        num = float(np.dot(common_ratings_i, common_ratings_j))
-        den = float(np.linalg.norm(common_ratings_i, ord=2)) * float(
-            np.linalg.norm(common_ratings_j, ord=2)
-        )
+        # Compute the user or item biases
+        if self.kind == "user":
+            bias_i = self.data.average_user_rating[i]
+            bias_j = self.data.average_user_rating[j]
+        else:
+            bias_i = self.data.average_item_rating[i]
+            bias_j = self.data.average_item_rating[j]
 
+        # Compute the adjusted cosine similarity
+        num = float(np.dot(common_ratings_i - bias_i, common_ratings_j - bias_j))
+        den_i = float(np.linalg.norm(common_ratings_i - bias_i))
+        den_j = float(np.linalg.norm(common_ratings_j - bias_j))
+        den = den_i * den_j
+
+        # Avoid division by zero
         if den == 0:
-            return 0.0  # Avoid division by zero
+            return 0.0
+
         return num / den
 
-    def _score_user_based(
-        self, u: int, i: int, similar_users_indices: NDArray
-    ) -> float:
+    def predict_all(self, k=50, support=3):
         """
-        Compute the recommendation score for given user u and item i
+        Compute predictions for each non-zero rating in the test set.
+        k is the number of neighbors to consider and support is the minimum number
+        of neighbors required for computing the predictions.
         """
-        # Average rating for user u
-        ru_mean = self.ratings[u, :].mean()
-        res = 0
-        sim_total = 0
+        predicted_ratings = np.zeros_like(self.test)
+        # Non-zero ratings' indices
+        nz_indices = zip(*self.test.nonzero())
 
-        # Apply the scoring formula
-        for v in similar_users_indices:
-            # Similarity between user u and user v
-            sim = self.similarity_matrix[u, v]
+        for u, i in nz_indices:
+            # Item-based model
+            if self.kind == "item":
+                # Extract the top k neighbors of the item i which have been rated by user u
+                similarities = self.similarity_matrix[i, :]
+                top_neighbors = np.argsort(similarities)[::-1]
+                valid_neighbors = top_neighbors[
+                    (self.ratings[u, top_neighbors] != 0)
+                    & (self.similarity_matrix[i, top_neighbors] > 0)
+                ][:k]
 
-            # Average rating for user v
-            rv_mean = self.ratings[v, :].mean()
-            res += (self.ratings[v, i] - rv_mean) * sim
-            sim_total += sim
+                # Skip if support is not met, i.e., ^r(u,i)=0
+                if len(valid_neighbors) < support:
+                    continue
 
-        # Avoid division by zero
-        if sim_total == 0:
-            return 0.0
-        return ru_mean + (res / sim_total)
+                # Biases required for rating normalization
+                bias_i = self.data.average_item_rating[i]
+                bias_j = self.data.average_item_rating[valid_neighbors]
 
-    def _top_n_user_based(self, user_index: int, n: int, k=100) -> DataFrame:
-        n_items = self.ratings.shape[1]
+                # Compute the prediction as the adjusted ratings times the similarity score
+                # divided by the sum of the similarities
+                num = np.sum(
+                    self.similarity_matrix[i, valid_neighbors]
+                    * (self.ratings[u, valid_neighbors] - bias_j)
+                )
+                den = np.sum(self.similarity_matrix[i, valid_neighbors])
 
-        # Retrieve the user's ratings
-        user_ratings = self.ratings[user_index, :]
+                # Avoid division by zero
+                if den != 0:
+                    predicted_ratings[u, i] = bias_i + float(num) / float(den)
+            else:
+                # Extract the top k neighbors of the user u who have rated the item i
+                similarities = self.similarity_matrix[u, :]
+                top_neighbors = np.argsort(similarities)[::-1]
+                valid_neighbors = top_neighbors[
+                    (self.ratings[top_neighbors, i] != 0)
+                    & (self.similarity_matrix[u, top_neighbors] > 0)
+                ][:k]
 
-        # Find the missing ratings for the user
-        unrated_items_indices = np.nonzero(user_ratings == 0)[0]
+                # Skip if support is not met, i.e., ^r(u,i)=0
+                if len(valid_neighbors) < support:
+                    continue
 
-        # Find similar users
-        similar_users_indices = np.argsort(self.similarity_matrix[user_index, :])[:k]
+                # Biases required for rating normalization
+                bias_u = self.data.average_user_rating[u]
+                bias_v = self.data.average_user_rating[valid_neighbors]
 
-        # Compute the scores for all unrated items
-        scores = np.zeros((n_items))
-        for unrated_index in unrated_items_indices:
-            scores[unrated_index] = self._score_user_based(
-                user_index, unrated_index, similar_users_indices
-            )
+                # Compute the prediction as the adjusted ratings times the similarity score
+                # divided by the sum of the similarities
+                num = np.sum(
+                    self.similarity_matrix[u, valid_neighbors]
+                    * (self.ratings[valid_neighbors, i] - bias_v)
+                )
+                den = np.sum(self.similarity_matrix[u, valid_neighbors])
 
-        top_n = np.argsort(scores)[::-1][:n].tolist()
+                # Avoid division by zero
+                if den != 0:
+                    predicted_ratings[u, i] = bias_u + float(num) / float(den)
 
-        return self.data.get_movie_from_index(top_n)
+        return predicted_ratings
 
-    def _score_item_based(self, u: int, i: int, k: int) -> float:
+    def _compute_errors(self, loss: Callable) -> list[float]:
+        predictions = self.predict_all()
+        n_users, n_items = self.test.shape
+
+        errors = [
+            loss(predictions[u, i] - self.test[u, i])
+            for u in range(n_users)
+            for i in range(n_items)
+            if self.test[u, i] != 0 and predictions[u, i] != 0
+        ]
+        return errors
+
+    def accuracy_rmse(self) -> float:
         """
-        Compute the score for given user u and item i
+        Compute the Root Mean Squared Error on the test set
         """
+        if self.errors is None:
+            self.errors = self._compute_errors(lambda x: x**2)
 
-        # Retrieve similar items
-        similarities = self.similarity_matrix[:, i]
-        similar_items = np.nonzero(similarities > 0)[0][:k]
+        return sqrt(np.mean(self.errors))
 
-        # Return zero if no similar items are found
-        if not similar_items.size:
-            return 0.0
-
-        # Apply the scoring formula
-        num = np.dot(
-            similarities[similar_items],
-            self.ratings[u, similar_items]
-            - self.data.average_item_rating[similar_items],
-        )
-        den = np.sum(self.ratings[u, similar_items])
-
-        # Avoid division by zero
-        if den == 0:
-            return 0.0
-        return (num / den) + self.data.average_item_rating[i]
-
-    def _top_n_item_based(self, user_index: int, n: int, k=100) -> DataFrame:
-        n_items = self.ratings.shape[1]
-
-        # Retrieve the user's ratings
-        user_ratings = self.ratings[user_index, :]
-
-        # Find the missing ratings for the user
-        unrated_items_indices = np.nonzero(user_ratings == 0)[0]
-
-        # Compute the scores for all unrated items
-        scores = np.zeros((n_items))
-        for unrated_index in unrated_items_indices:
-            scores[unrated_index] = self._score_item_based(user_index, unrated_index, k)
-
-        rec_indices = np.argsort(scores)[::-1][:n]
-        return self.data.get_movie_from_index(rec_indices.tolist())
-
-    def top_n_recommendations(self, user_id: int, n: int) -> DataFrame:
+    def accuracy_mae(self) -> float:
         """
-        Given a user compute n movie recommendations based on the similarity matrix
+        Compute the Mean Absolute Error on the test set
         """
+        if self.errors is None:
+            self.errors = self._compute_errors(lambda x: abs(x))
 
-        user_index = self.data.id_to_index(user_id, "user")
-
-        if self.kind == "item":
-            return self._top_n_item_based(user_index, n)
-        else:
-            return self._top_n_user_based(user_index, n)
+        return float(np.mean(self.errors))
