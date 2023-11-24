@@ -169,7 +169,7 @@ class Data:
             "War",
             "Western",
         ]
-        self.genres_labels = col_names[5:]
+        self.genres_labels = col_names[6:]
         data = pd.read_csv(
             movies_path,
             sep="|",
@@ -178,7 +178,7 @@ class Data:
             encoding="iso-8859-1",
             on_bad_lines="warn",
         )
-        self.items = data.drop(["video_release_date", "IMDb_URL"], axis=1)
+        self.items = data.drop(["video_release_date", "IMDb_URL", "unknown"], axis=1)
 
     def get_movies_from_ids(self, movie_ids: int | NDArray[np.int64]) -> DataFrame:
         """

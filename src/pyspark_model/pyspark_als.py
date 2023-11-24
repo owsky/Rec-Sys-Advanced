@@ -19,7 +19,7 @@ def pyspark_als(coo_array: coo_array, test_data: coo_array):
         [
             StructField("user", IntegerType(), True),
             StructField("item", IntegerType(), True),
-            StructField("rating", FloatType(), True),
+            StructField("rating", IntegerType(), True),
         ]
     )
 

@@ -8,4 +8,4 @@ from .collaborative_filtering import (
     Nearest_Neighbors,
 )
 from .non_personalized import Non_Personalized
-from .content_based import Content_Based
+from .content_based import Content_Based, Content_Based_TF_IDF
