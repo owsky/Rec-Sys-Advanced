@@ -16,6 +16,7 @@ class ALS_MR(CF_Base):
     spark: SparkContext | None = None
 
     def fit(self, train_set: coo_array, n_factors=10, epochs=10, reg=0.01):
+        print("Fitting the Map Reduce Alternating Least Squares model...")
         # Spark initialization
         if self.spark is None:
             self.spark = SparkContext(

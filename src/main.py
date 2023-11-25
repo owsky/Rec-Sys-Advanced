@@ -9,14 +9,14 @@ RandomSingleton.initialize(seed=42)
 
 
 def main():
-    lightfm_model()
-
-    # data = Data(
-    #     movies_path="data/u.item", ratings_path="data/u.data", ratings_test_size=0.25
-    # )
-    # cb(data)
-    # cf(data)
-    # non_pers(data)
+    data = Data(
+        movies_path="data/movies.csv",
+        tags_path="data/tags.csv",
+        ratings_path="data/ratings.csv",
+        ratings_test_size=0.25,
+    )
+    cf(data)
+    non_pers(data)
 
 
 if __name__ == "__main__":

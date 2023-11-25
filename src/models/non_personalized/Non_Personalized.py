@@ -14,6 +14,7 @@ class Non_Personalized:
     """
 
     def fit(self, data: Data):
+        print("Fitting the non personalized model...")
         self.data = data
         self.ratings = self.data.train.tocsc()
         self.average_ratings = self.ratings.mean(axis=0)
@@ -43,15 +44,14 @@ class Non_Personalized:
 
         # Return the top n highest rated unrated items
         movie_ids = np.array(
-            [self.data.index_to_id(idx, "movie") for idx in top_n_indices]
+            [self.data.index_to_id(idx, "item") for idx in top_n_indices]
         )
-        movies = self.data.get_movies_from_ids(movie_ids)
-        return movies
+        return movie_ids
 
-    def get_n_highest_rated(self, user_id: int, n=10) -> DataFrame:
+    def get_n_highest_rated(self, user_id: int, n=10):
         return self._get_top_n(user_id, n, self.average_ratings)
 
-    def get_n_most_popular(self, user_id: int, n=10) -> DataFrame:
+    def get_n_most_popular(self, user_id: int, n=10):
         return self._get_top_n(user_id, n, self.popularity)
 
     def accuracy(self, algorithm: Literal["most_popular", "highest_rated"]):
@@ -64,13 +64,12 @@ class Non_Personalized:
                 recommendations = self.get_n_most_popular(user_id, 10)
             else:
                 recommendations = self.get_n_highest_rated(user_id, 10)
-            recommended_ids = recommendations["movie_id"].tolist()
+            recommended_ids = recommendations.tolist()
 
             user_bias = self.data.average_user_rating[user_index]
             relevant_items_indices = np.nonzero(test[user_index, :] - user_bias > 0)[0]
             relevant_items_ids = [
-                self.data.index_to_id(index, "movie")
-                for index in relevant_items_indices
+                self.data.index_to_id(index, "item") for index in relevant_items_indices
             ]
             relevant_recommended = np.intersect1d(recommended_ids, relevant_items_ids)
 

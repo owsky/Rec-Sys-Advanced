@@ -1,11 +1,6 @@
-import numpy as np
 from data import Data
 from models import MF, ALS_MR, ALS, Nearest_Neighbors
 from pyspark_model import pyspark_als
-from collections import defaultdict
-from surprise import Dataset, KNNBaseline, KNNBasic
-from surprise.model_selection import KFold
-from surprise.similarities import pearson
 
 
 def cf(data: Data):
@@ -18,14 +13,14 @@ def cf(data: Data):
 
     # Alternating Least Squares
     als = ALS()
-    als.fit(train_set=data.train, n_factors=2, epochs=10, reg=0.8)
+    als.fit(train_set=data.train, n_factors=10, epochs=10, reg=0.01)
     print(
         f"ALS MAE:  {als.accuracy_mae(data.test)}, ALS RMSE:  {als.accuracy_rmse(data.test)}"
     )
 
     # Map Reduce Alternating Least Squares using PySpark
     als_mr = ALS_MR()
-    als_mr.fit(train_set=data.train, n_factors=2, epochs=10, reg=0.8)
+    als_mr.fit(train_set=data.train, n_factors=10, epochs=10, reg=0.01)
     print(
         f"ALS_MR MAE:  {als_mr.accuracy_mae(data.test)}, ALS RMSE:  {als_mr.accuracy_rmse(data.test)}"
     )
@@ -36,7 +31,11 @@ def cf(data: Data):
     # Nearest Neighbors
     nn = Nearest_Neighbors()
     nn.fit(data, "user", "cosine")
-    print(f"User-based MAE: {nn.accuracy_mae()}, RMSE: {nn.accuracy_rmse()}")
+    print(
+        f"User-based with Adjusted Cosine Similarity MAE: {nn.accuracy_mae()}, RMSE: {nn.accuracy_rmse()}"
+    )
     nn2 = Nearest_Neighbors()
-    nn2.fit(data, "item", "cosine")
-    print(f"Item-based MAE: {nn2.accuracy_mae()}, RMSE: {nn2.accuracy_rmse()}")
+    nn2.fit(data, "user", "pearson")
+    print(
+        f"User-based with Pearson Correlation MAE: {nn2.accuracy_mae()}, RMSE: {nn2.accuracy_rmse()}"
+    )

@@ -3,7 +3,7 @@ import numpy as np
 from numpy.typing import NDArray
 import pandas as pd
 from pandas import DataFrame
-from scipy.sparse import coo_array, csr_array, csc_array
+from scipy.sparse import coo_array
 
 
 class Data:
@@ -16,25 +16,12 @@ class Data:
         self,
         movies_path: str,
         ratings_path: str,
+        tags_path: str,
         ratings_test_size: float = 0.2,
     ):
         self._load_ratings(ratings_path, ratings_test_size)
         self._load_movies(movies_path)
-
-    def _read_ratings_file(self, ratings_path: str) -> NDArray[np.float64]:
-        """
-        Read file into memory converting strings to integers and return a numpy array
-        """
-        with open(ratings_path, "r") as f:
-            ratings = []
-            for line in f:
-                user_id, item_id, rating, timestamp = line.rstrip().split("\t")
-                ratings.append(
-                    [int(user_id), int(item_id), int(rating), int(timestamp)]
-                )
-            f.close()
-        ratings = np.array(ratings)
-        return ratings
+        self._load_tags(tags_path)
 
     def _train_test_split(
         self, ratings: NDArray[np.float64], test_size: float
@@ -52,59 +39,69 @@ class Data:
 
         return train, test
 
-    def _create_ratings_matrix(
-        self, ratings: NDArray[np.float64], shape: tuple[int, int]
-    ):
+    def _create_ratings_matrix(self, ratings: DataFrame, shape: tuple[int, int]):
         """
         Given a ratings array and a shape, create a sparse array in COO format
         """
         data = []
-        row_indices = []
-        col_indices = []
+        indices = []
 
-        for user, item, rating, _ in ratings:
-            user_index = self.id_to_index(user, "user")
-            item_index = self.id_to_index(item, "movie")
+        for _, row in ratings.iterrows():
+            user_id, item_id, rating = row["userId"], row["movieId"], row["rating"]
+
+            if user_id in self.user_id_to_index:
+                user_index = self.user_id_to_index[user_id]
+            else:
+                user_index = self.new_user_index
+                self.user_id_to_index[user_id] = user_index
+                self.user_index_to_id[user_index] = user_id
+                self.new_user_index += 1
+
+            if item_id in self.item_id_to_index:
+                item_index = self.item_id_to_index[item_id]
+            else:
+                item_index = self.new_item_index
+                self.item_id_to_index[item_id] = item_index
+                self.item_index_to_id[item_index] = item_id
+                self.new_item_index += 1
+
             data.append(rating)
-            row_indices.append(user_index)
-            col_indices.append(item_index)
-        sorted_indices = np.lexsort((col_indices, row_indices))
+            indices.append((user_index, item_index))
+
+        sorted_indices = np.lexsort((np.array(indices)[:, 1], np.array(indices)[:, 0]))
         data = np.array(data)[sorted_indices]
-        row_indices = np.array(row_indices)[sorted_indices]
-        col_indices = np.array(col_indices)[sorted_indices]
-        ratings_matrix = coo_array((data, (row_indices, col_indices)), shape=shape)
+        indices = np.array(indices)[sorted_indices]
+        ratings_matrix = coo_array((data, indices.T), shape=shape)
+
         return ratings_matrix
 
-    def _handle_id_ranges(self, ratings: NDArray[np.float64]) -> tuple[int, int]:
-        """
-        Compute the shape that the user-item matrices will need to assume.
-        This is needed in case some item ids happen to be <= 0. In such case
-        an offset is introduced to account for this.
-        """
-        min_rows = ratings[:, 0].min()
-        min_cols = ratings[:, 1].min()
-        max_rows = ratings[:, 0].max()
-        max_cols = ratings[:, 1].max()
+    def _compute_average_ratings(self, coo_array: coo_array):
+        num_rows = coo_array.shape[0]
+        num_cols = coo_array.shape[1]
 
-        self.offset_rows = abs(min_rows) + 1 if min_rows <= 0 else 0
-        self.offset_cols = abs(min_cols) + 1 if min_cols <= 0 else 0
+        row_sum_array = np.zeros(num_rows)
+        row_count_array = np.zeros(num_rows)
 
-        return max_rows + self.offset_rows, max_cols + self.offset_cols
+        col_sum_array = np.zeros(num_cols)
+        col_count_array = np.zeros(num_cols)
 
-    def _compute_average_rating(
-        self, ratings: csr_array | csc_array, axis: Literal[0, 1]
-    ):
-        n_rows, n_cols = ratings.shape
-        dim = n_rows if axis == 0 else n_cols
-        means = []
-        for index in range(dim):
-            user_ratings = ratings[[index], :] if axis == 0 else ratings[:, [index]]
-            nz = user_ratings.count_nonzero()
-            if nz == 0:
-                nz = 1
-            user_mean = user_ratings.sum() / nz
-            means.append(user_mean)
-        return np.array(means)
+        for row, col, value in zip(coo_array.row, coo_array.col, coo_array.data):
+            row_sum_array[row] += value
+            if value != 0:
+                row_count_array[row] += 1
+
+            col_sum_array[col] += value
+            if value != 0:
+                col_count_array[col] += 1
+
+        # Avoid division by zero
+        row_count_array[row_count_array == 0] = 1
+        col_count_array[col_count_array == 0] = 1
+
+        row_averages = row_sum_array / row_count_array
+        col_averages = col_sum_array / col_count_array
+
+        return row_averages, col_averages
 
     def _load_ratings(
         self, ratings_path: str, test_size: float
@@ -113,116 +110,87 @@ class Data:
         Load the ratings from file, optionally partition into train and test datasets by timestamp,
         and then create the user-item ratings matrices with sparse representations.
         """
-        ratings = self._read_ratings_file(ratings_path)
+        df = pd.read_csv(ratings_path)
 
-        ratings_matrix_shape = self._handle_id_ranges(ratings)
+        shape = (df["userId"].nunique(), df["movieId"].nunique())
 
-        train, test = self._train_test_split(ratings, test_size)
-        self.train = self._create_ratings_matrix(train, ratings_matrix_shape)
-        self.test = self._create_ratings_matrix(test, ratings_matrix_shape)
-        self.average_user_rating = self._compute_average_rating(self.train.tocsr(), 0)
-        self.average_item_rating = self._compute_average_rating(self.train.tocsc(), 1)
+        df = df.sort_values(by="timestamp")
+        df = df.drop(columns=["timestamp"])
+        split_index = int(test_size * len(df))
+        train = df.iloc[:split_index]
+        test = df.iloc[split_index:]
+
+        self.user_id_to_index = {}
+        self.user_index_to_id = {}
+        self.new_user_index = 0
+        self.item_id_to_index = {}
+        self.item_index_to_id = {}
+        self.new_item_index = 0
+
+        self.train = self._create_ratings_matrix(train, shape)
+        self.test = self._create_ratings_matrix(test, shape)
+
+        # self.train = train.pivot(index="userId", columns="movieId", values="rating")
+        (
+            self.average_user_rating,
+            self.average_item_rating,
+        ) = self._compute_average_ratings(self.train)
 
         return self.train, self.test
 
-    def id_to_index(self, id: int, kind: Literal["user", "movie"]) -> int:
+    def id_to_index(self, id: int, kind: Literal["user", "item"]) -> int:
         """
         Convert an ID to an index of the user-item matrix
         """
-        offset = self.offset_rows if kind == "user" else self.offset_cols
-        return id - offset - 1
+        if kind == "user":
+            return self.user_id_to_index[id]
+        else:
+            return self.item_id_to_index[id]
 
-    def index_to_id(self, index: int, kind: Literal["user", "movie"]) -> int:
+    def index_to_id(self, index: int, kind: Literal["user", "item"]) -> int:
         """
         Convert an index of the user-item matrix to an ID
         """
-        offset = self.offset_rows if kind == "user" else self.offset_cols
-        return index + offset + 1
+        if kind == "user":
+            return self.user_index_to_id[index]
+        else:
+            return self.item_index_to_id[index]
 
     def _load_movies(self, movies_path: str) -> None:
         """
         Load the movies information as DataFrame
         """
-        col_names = [
-            "movie_id",
-            "movie_title",
-            "release_date",
-            "video_release_date",
-            "IMDb_URL",
-            "unknown",
-            "Action",
-            "Adventure",
-            "Animation",
-            "Children's",
-            "Comedy",
-            "Crime",
-            "Documentary",
-            "Drama",
-            "Fantasy",
-            "Film-Noir",
-            "Horror",
-            "Musical",
-            "Mystery",
-            "Romance",
-            "Sci-Fi",
-            "Thriller",
-            "War",
-            "Western",
-        ]
-        self.genres_labels = col_names[6:]
-        data = pd.read_csv(
-            movies_path,
-            sep="|",
-            header=None,
-            names=col_names,
-            encoding="iso-8859-1",
-            on_bad_lines="warn",
-        )
-        self.items = data.drop(["video_release_date", "IMDb_URL", "unknown"], axis=1)
+        self.movies = pd.read_csv(movies_path)
 
-    def get_movies_from_ids(self, movie_ids: int | NDArray[np.int64]) -> DataFrame:
+        genres_df = self.movies["genres"].str.split("|", expand=True).stack()
+
+        if isinstance(genres_df, pd.DataFrame):
+            raise RuntimeError(
+                "Something wrong happened while loading the movies dataset"
+            )
+
+        genres_df = genres_df.to_frame("unique_genres")
+        self.genre_labels = genres_df["unique_genres"].unique().tolist()
+
+    def _load_tags(self, tags_path: str) -> None:
+        tags_df = pd.read_csv(tags_path)
+        self.tags = tags_df.drop(columns="timestamp")
+
+    def get_movies_from_ids(self, movie_ids: list[int]) -> DataFrame:
         """
         Given a movie id or an array of ids, retrieve the full movies information from
         the dataframe, sorted by the order of the provided ids
         """
-        items_df = self.items
-        indices = [movie_ids] if isinstance(movie_ids, int) else movie_ids.flatten()
-        result_df = items_df[items_df["movie_id"].isin(indices)]
-        result_df = result_df.set_index("movie_id")
-        result_df = result_df.reindex(indices)
+        result_df = self.movies[self.movies["movieId"].isin(movie_ids)]
+        result_df = result_df.set_index("movieId")
+        result_df = result_df.reindex(movie_ids)
         result_df = result_df.reset_index()
         return result_df
 
-    def get_movie_from_index(self, movie_indices: int | list[int]) -> DataFrame:
+    def get_movie_from_indices(self, movie_indices: list[int]) -> DataFrame:
         """
         Given a movie index, return the movie information
         """
-        l = []
-        if isinstance(movie_indices, list):
-            for index in movie_indices:
-                l.append(self.index_to_id(index, "movie"))
-        return self.get_movies_from_ids(np.array(l))
-
-    def pretty_print_movies_df(self, movies_df: DataFrame) -> None:
-        """
-        Given a movies dataframe pretty print to standard output the movies information
-        """
-        df_genres = pd.DataFrame(
-            {
-                "ID": movies_df["movie_id"],
-                "Title": movies_df["movie_title"],
-                "Release Date": movies_df["release_date"],
-                "Genres": movies_df[self.genres_labels].apply(
-                    lambda row: ", ".join(
-                        [
-                            genre
-                            for genre, value in zip(self.genres_labels, row)
-                            if value == 1
-                        ]
-                    ),
-                    axis=1,
-                ),
-            }
+        return self.get_movies_from_ids(
+            [self.index_to_id(i, "item") for i in movie_indices]
         )
-        pd.set_option("colheader_justify", "center")
-        print(df_genres)

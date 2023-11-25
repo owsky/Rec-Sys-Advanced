@@ -1,5 +1,5 @@
 from math import sqrt
-from typing import Any, Callable, Literal
+from typing import Callable, Literal
 from joblib import Parallel, delayed
 import numpy as np
 from numpy.typing import NDArray
@@ -22,9 +22,12 @@ class Nearest_Neighbors:
         or Adjusted Cosine Similarity. Parameter kind determines whether user-user or item-item strategy
         for recommendations is adopted.
         """
+        print(
+            f"Fitting the {kind}-based Neighborhood Filtering model with {similarity}..."
+        )
         self.data = data
-        self.test = data.test.todense().astype(np.float64)
         self.ratings = data.train.todense().astype(np.float64)
+        self.test = data.test.todense().astype(np.float64)
         self.kind = kind
         self.similarity = similarity
         if kind == "user":
@@ -33,12 +36,16 @@ class Nearest_Neighbors:
             dim = data.train.shape[1]
         else:
             raise RuntimeError("Wrong value for parameter kind")
+
         self.similarity_matrix = np.zeros((dim, dim), dtype=np.float64)
 
         # Compute the similarity matrix in parallel
-        results = Parallel(n_jobs=-1)(
+        results = Parallel(n_jobs=-1, backend="loky")(
             delayed(self.calculate_similarity)(i, dim)
-            for i in tqdm(range(dim), desc="Computing similarities")
+            for i in tqdm(
+                range(dim),
+                desc="Computing " + kind + "-based similarities using " + similarity,
+            )
         )
 
         # Store the results into the similarity matrix

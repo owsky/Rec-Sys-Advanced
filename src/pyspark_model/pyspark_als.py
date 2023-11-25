@@ -10,6 +10,7 @@ def pyspark_als(coo_array: coo_array, test_data: coo_array):
     """
     Trains the ALS recommender provided by PySpark and prints accuracy metrics
     """
+    print("Fitting the PySpark Alternating Least Squares model...")
     conf = SparkConf().setAppName("PySpark ALS").setMaster("local")
     spark = SparkSession.Builder().config(conf=conf).getOrCreate()
     spark.sparkContext.setLogLevel("WARN")
@@ -19,7 +20,7 @@ def pyspark_als(coo_array: coo_array, test_data: coo_array):
         [
             StructField("user", IntegerType(), True),
             StructField("item", IntegerType(), True),
-            StructField("rating", IntegerType(), True),
+            StructField("rating", FloatType(), True),
         ]
     )
 

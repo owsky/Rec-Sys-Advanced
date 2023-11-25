@@ -22,6 +22,7 @@ class MF(CF_Base):
         lr_decay_factor: float = 0.9,
         max_grad_norm: float | None = 1.0,
     ):
+        print("Fitting the Matrix Factorization model...")
         num_users, num_items = train_set.shape
         self.lr = lr
         self.lr_decay_factor = lr_decay_factor

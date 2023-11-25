@@ -43,7 +43,7 @@ class Content_Based:
             filtered_ratings, key=lambda index: ratings[index], reverse=True  # type: ignore
         )[:k]
 
-        movies = self.data.get_movie_from_index(most_liked_indices)
+        movies = self.data.get_movie_from_indices(most_liked_indices)
         genres_array = movies.iloc[:, 3:].values
         return genres_array
 
@@ -74,7 +74,7 @@ class Content_Based:
                 recommendations.append(neighbor)
 
         if ret_df:
-            return self.data.get_movie_from_index(recommendations[:n])
+            return self.data.get_movie_from_indices(recommendations[:n])
         else:
             return recommendations[:n]
 

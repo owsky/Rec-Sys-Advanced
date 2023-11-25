@@ -12,6 +12,7 @@ class ALS(CF_Base):
     """
 
     def fit(self, train_set: coo_array, n_factors=10, epochs=10, reg=0.01):
+        print("Fitting the sequential Alternating Least Squares model...")
         self.train_set = train_set
 
         n_users, n_items = train_set.shape
