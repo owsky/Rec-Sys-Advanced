@@ -1,18 +1,17 @@
-import math
 import numpy as np
 from numpy.typing import NDArray
 from sklearn.metrics import ndcg_score
 from data import Data
 from sklearn.neighbors import NearestNeighbors
 from sklearn.feature_extraction.text import TfidfVectorizer
-from scipy.sparse import csr_matrix
+from scipy.sparse import csr_matrix, spmatrix
 from utils import lists_str_join
 
 
 class Content_Based:
     def __init__(self, data: Data):
         self.data = data
-        self.train = self.data.train.todense()
+        self.train: NDArray[np.float64] = self.data.train.toarray()
         self.movies = self.data.movies
 
     def fit(self):
@@ -50,14 +49,14 @@ class Content_Based:
         for user_index in range(n_users):
             user_profiles_tmp.append(self._create_user_profile(user_index))
         average_user_profile: NDArray[np.float64] = np.stack(
-            [x.todense() for x in user_profiles_tmp if not isinstance(x, int)]
+            [x.toarray() for x in user_profiles_tmp if not isinstance(x, int)]
         ).mean(axis=0)
         self.user_profiles: list[csr_matrix] = [
             csr_matrix(average_user_profile) if isinstance(x, int) else x
             for x in user_profiles_tmp
         ]
 
-    def _get_movie_vector(self, movie_index: int) -> csr_matrix:
+    def _get_movie_vector(self, movie_index: int) -> spmatrix:
         """
         Given a movie index compute the respective tfidf matrix
         """
@@ -68,34 +67,14 @@ class Content_Based:
         movie_tags = movie["tags"].values
 
         movie_genres_tags = lists_str_join(movie_genres.tolist(), movie_tags.tolist())
-        return self.vec_model.transform([movie_genres_tags])  # type: ignore
-
-    # def _create_user_profile(self, user_index: int, k=4) -> int | csr_matrix:
-    #     """
-    #     Create user profile by averaging the k most liked movies' genres and tags
-    #     If a user has no liked movies return the index and let the caller deal with ti
-    #     """
-    #     ratings = self.train[user_index, :]
-    #     rated_indices = np.nonzero(ratings)[0]
-    #     most_liked_indices = sorted(
-    #         rated_indices, key=lambda index: ratings[index], reverse=True  # type: ignore
-    #     )[:k]
-    #     movie_vectors: list[NDArray[np.float64]] = []
-    #     for most_liked_index in most_liked_indices:
-    #         movie_vectors.append(self._get_movie_vector(most_liked_index).todense())
-    #     # Cold User
-    #     if len(movie_vectors) == 0:
-    #         return user_index
-
-    #     stacked = np.stack(movie_vectors)
-    #     return csr_matrix(np.mean(stacked, axis=0))
+        return self.vec_model.transform([movie_genres_tags])
 
     def _create_user_profile(self, user_index: int, k=4) -> int | csr_matrix:
         """
         Create user profile by averaging the k most liked movies' genres and tags
         If a user has no liked movies return the index and let the caller deal with it
         """
-        ratings = self.train[user_index, :]
+        ratings = self.train[user_index, :].tolist()
         rated_indices = np.nonzero(ratings)[0]
 
         if len(rated_indices) == 0:
@@ -112,7 +91,7 @@ class Content_Based:
         weights = []
 
         for index in sorted_indices:
-            movie_vector = self._get_movie_vector(index).todense()
+            movie_vector = np.array(self._get_movie_vector(index))
             weight = ratings[index]
             movie_vectors.append(movie_vector)
             weights.append(weight)
@@ -174,7 +153,7 @@ class Content_Based:
         Compute all accuracy metrics using the test set
         """
         n_users = self.data.test.shape[0]
-        test = self.data.test.todense()
+        test = self.data.test.toarray()
 
         def aux(user_index: int):
             n = 10
