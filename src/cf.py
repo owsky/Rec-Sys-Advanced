@@ -6,7 +6,16 @@ from pyspark_model import pyspark_als
 def cf(data: Data):
     # Matrix Factorization
     mf = MF()
-    mf.fit(data.train)
+    mf.fit(
+        train_set=data.train,
+        n_factors=5,
+        epochs=10,
+        lr=0.9,
+        reg=0.1,
+        batch_size=1,
+        lr_decay_factor=0.9,
+        max_grad_norm=1.0,
+    )
     print(
         f"MF MAE: {mf.accuracy_mae(data.test)}, MF RMSE: {mf.accuracy_rmse(data.test)}"
     )

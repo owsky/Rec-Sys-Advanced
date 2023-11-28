@@ -1,6 +1,5 @@
 from typing import Literal
 import numpy as np
-from numpy.typing import NDArray
 import pandas as pd
 from pandas import DataFrame
 from scipy.sparse import coo_array
@@ -14,37 +13,22 @@ class Data:
 
     def __init__(
         self,
-        movies_path: str,
-        ratings_path: str,
-        tags_path: str,
+        data_path: str,
         ratings_test_size: float = 0.2,
     ):
-        self._load_ratings(ratings_path, ratings_test_size)
-        self._load_movies(movies_path)
-        self._load_tags(tags_path)
-
-    def _train_test_split(
-        self, ratings: NDArray[np.float64], test_size: float
-    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
-        """
-        Split ratings dataset into train and test according to test size and timestamps
-        """
-        ratings[ratings[:, 3].argsort()]  # Sort by timestamp
-
-        n_rows = ratings.shape[0]
-        split_index = int(n_rows * (1 - test_size))
-
-        train = ratings[:split_index, :]
-        test = ratings[split_index:, :]
-
-        return train, test
+        self.data_path = data_path
+        print("Loading the datasets...")
+        self._load_movies()
+        self._load_ratings(ratings_test_size)
+        print("Datasets loaded correctly")
 
     def _create_ratings_matrix(self, ratings: DataFrame, shape: tuple[int, int]):
         """
         Given a ratings array and a shape, create a sparse array in COO format
         """
         data = []
-        indices = []
+        row_indices = []
+        col_indices = []
 
         for _, row in ratings.iterrows():
             user_id, item_id, rating = row["userId"], row["movieId"], row["rating"]
@@ -57,21 +41,21 @@ class Data:
                 self.user_index_to_id[user_index] = user_id
                 self.new_user_index += 1
 
-            if item_id in self.item_id_to_index:
-                item_index = self.item_id_to_index[item_id]
-            else:
-                item_index = self.new_item_index
-                self.item_id_to_index[item_id] = item_index
-                self.item_index_to_id[item_index] = item_id
-                self.new_item_index += 1
+            item_index = self.item_id_to_index[item_id]
+
+            # if item_id in self.item_id_to_index:
+            #     item_index = self.item_id_to_index[item_id]
+            # else:
+            #     item_index = self.new_item_index
+            #     self.item_id_to_index[item_id] = item_index
+            #     self.item_index_to_id[item_index] = item_id
+            #     self.new_item_index += 1
 
             data.append(rating)
-            indices.append((user_index, item_index))
+            row_indices.append(user_index)
+            col_indices.append(item_index)
 
-        sorted_indices = np.lexsort((np.array(indices)[:, 1], np.array(indices)[:, 0]))
-        data = np.array(data)[sorted_indices]
-        indices = np.array(indices)[sorted_indices]
-        ratings_matrix = coo_array((data, indices.T), shape=shape)
+        ratings_matrix = coo_array((data, (row_indices, col_indices)), shape=shape)
 
         return ratings_matrix
 
@@ -103,34 +87,41 @@ class Data:
 
         return row_averages, col_averages
 
-    def _load_ratings(
-        self, ratings_path: str, test_size: float
-    ) -> tuple[coo_array, coo_array]:
+    def _load_ratings(self, test_size: float) -> tuple[coo_array, coo_array]:
         """
         Load the ratings from file, optionally partition into train and test datasets by timestamp,
         and then create the user-item ratings matrices with sparse representations.
         """
-        df = pd.read_csv(ratings_path)
+        df = pd.read_csv(
+            self.data_path + "ratings.csv",
+            dtype={
+                "movie_id": "Int64",
+                "userId": "Int64",
+                "rating": float,
+                "timestamp": int,
+            },
+        )
+        df["timestamp"] = pd.to_datetime(df["timestamp"], unit="s")
 
-        shape = (df["userId"].nunique(), df["movieId"].nunique())
+        movie_ids_with_tags = self.movies["movieId"].values
+        df = df[df["movieId"].isin(movie_ids_with_tags)]
+
+        shape = (df["userId"].nunique(), self.how_many_unique_movie_ids)
 
         df = df.sort_values(by="timestamp")
-        df = df.drop(columns=["timestamp"])
-        split_index = int(test_size * len(df))
+        # df = df.drop(columns=["timestamp"])
+        split_index = int(test_size * (1 - len(df)))
         train = df.iloc[:split_index]
+        self.train_ratings_df = train
         test = df.iloc[split_index:]
 
         self.user_id_to_index = {}
         self.user_index_to_id = {}
         self.new_user_index = 0
-        self.item_id_to_index = {}
-        self.item_index_to_id = {}
-        self.new_item_index = 0
 
         self.train = self._create_ratings_matrix(train, shape)
         self.test = self._create_ratings_matrix(test, shape)
 
-        # self.train = train.pivot(index="userId", columns="movieId", values="rating")
         (
             self.average_user_rating,
             self.average_item_rating,
@@ -156,25 +147,47 @@ class Data:
         else:
             return self.item_index_to_id[index]
 
-    def _load_movies(self, movies_path: str) -> None:
+    def _load_movies(self) -> None:
         """
         Load the movies information as DataFrame
         """
-        self.movies = pd.read_csv(movies_path)
+        movies_df = pd.read_csv(
+            self.data_path + "movies_filtered.csv",
+            dtype={"movieId": int, "title": str, "genres": str},
+        )
 
-        genres_df = self.movies["genres"].str.split("|", expand=True).stack()
+        movies_df["genres"] = movies_df["genres"].str.lower()
 
-        if isinstance(genres_df, pd.DataFrame):
-            raise RuntimeError(
-                "Something wrong happened while loading the movies dataset"
-            )
+        tags = pd.read_csv(
+            self.data_path + "tags.csv",
+            dtype={"tagId": int, "movieId": int, "tag": str},
+        )
+        tags["tag"] = tags["tag"].str.lower()
 
-        genres_df = genres_df.to_frame("unique_genres")
-        self.genre_labels = genres_df["unique_genres"].unique().tolist()
+        merged = pd.merge(movies_df, tags, on="movieId", how="inner")
+        self.movies = (
+            merged.groupby(["movieId", "title", "genres"])["tag"]
+            .agg(list)
+            .reset_index()
+            .rename(columns={"tag": "tags"})
+        )
 
-    def _load_tags(self, tags_path: str) -> None:
-        tags_df = pd.read_csv(tags_path)
-        self.tags = tags_df.drop(columns="timestamp")
+        all_movie_ids = self.movies["movieId"].unique()
+
+        self.item_index_to_id = {
+            index: movie_id for index, movie_id in enumerate(all_movie_ids)
+        }
+        self.item_id_to_index = {
+            movie_id: index for index, movie_id in self.item_index_to_id.items()
+        }
+
+        self.how_many_unique_movie_ids = len(self.item_id_to_index.values())
+
+        self.movies["genres"] = self.movies["genres"].str.split("|")
+        self.genre_vocabulary = self.movies.explode("genres")["genres"].unique()
+        self.tags_vocabulary = self.movies.explode("tags")["tags"].unique()
+        self.max_num_genres = self.movies["genres"].apply(len).max()
+        self.max_num_tags = self.movies["tags"].apply(len).max()
 
     def get_movies_from_ids(self, movie_ids: list[int]) -> DataFrame:
         """

@@ -1,3 +1,4 @@
+import numpy as np
 from data import Data
 from utils import RandomSingleton
 from non_pers import non_pers
@@ -9,14 +10,10 @@ RandomSingleton.initialize(seed=42)
 
 
 def main():
-    data = Data(
-        movies_path="data/movies.csv",
-        tags_path="data/tags.csv",
-        ratings_path="data/ratings.csv",
-        ratings_test_size=0.25,
-    )
-    cf(data)
-    non_pers(data)
+    data = Data(data_path="dataset/", ratings_test_size=0.35)
+    # cf(data)
+    # non_pers(data)
+    cb(data)
 
 
 if __name__ == "__main__":
