@@ -37,30 +37,28 @@ for index, row in full_genome_tags_df.iterrows():
         r" \([^)]*\)", "", tag
     )  ## Removing all parenthesis and its contents, including the whitespace before
 
-    # First if:
     if (
         "based" in correct_tag
     ):  ## This is necessary because it is a common tag and avoids the other if statements downstream
-        full_genome_tags_df.loc[index, "tag"] = correct_tag
+        full_genome_tags_df.loc[index, "tag"] = correct_tag  # type: ignore
         continue
 
-    # Second if:
     if (
         "-" in correct_tag
     ):  ## This is to keep "sci-fi" from being removed in the next if statement
-        full_genome_tags_df.loc[index, "tag"] = correct_tag
+        full_genome_tags_df.loc[index, "tag"] = correct_tag  # type: ignore
         continue
 
-    # Third if:
     if re.findall(r"\b\w{2}\b", correct_tag):
         full_genome_tags_df.loc[
-            index, "tag"
+            index, "tag"  # type: ignore
         ] = (
             np.NaN
         )  ## Replacing two-letter words; Need to maintain index ordering, will delete NaNs later
 
     elif re.findall(r"\b\w{1}\b", correct_tag):
-        full_genome_tags_df.loc[index, "tag"] = np.NaN  ## Replacing one-letter words
+        # Replacing one-letter words
+        full_genome_tags_df.loc[index, "tag"] = np.NaN  # type: ignore
 
     elif (
         tag == correct_tag
@@ -68,7 +66,8 @@ for index, row in full_genome_tags_df.iterrows():
         continue
 
     else:
-        full_genome_tags_df.loc[index, "tag"] = correct_tag  ## Saves the corrected tag
+        # Saves the corrected tag
+        full_genome_tags_df.loc[index, "tag"] = correct_tag  # type: ignore
         pass
 
 # Dropping all tags with words that are lower than two letters or less
@@ -87,7 +86,7 @@ merged_df = pd.merge(small_movies_df, full_genome, on="movieId")
 merged_df = merged_df.sort_values(by="relevance", ascending=False)
 
 # Group by 'movieId' and take the top 50 rows for each group
-top_50_tags_per_movie = merged_df.groupby("movieId").head(30)
+top_50_tags_per_movie = merged_df.groupby("movieId").head(50)
 
 # If needed, you can drop the 'relevance' column after obtaining the top 50 tags
 # top_50_tags_per_movie = top_50_tags_per_movie.drop(columns="relevance")

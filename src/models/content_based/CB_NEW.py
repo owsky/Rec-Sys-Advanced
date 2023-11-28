@@ -6,6 +6,7 @@ from sklearn.neighbors import NearestNeighbors
 from sklearn.feature_extraction.text import TfidfVectorizer
 from scipy.sparse import csr_matrix, spmatrix
 from utils import lists_str_join
+from models import Non_Personalized
 
 
 def z_score_norm(ratings):
@@ -27,10 +28,10 @@ def z_score_norm(ratings):
 class Content_Based:
     def __init__(self, data: Data):
         self.data = data
-
         self.train: NDArray[np.float64] = z_score_norm(self.data.train.toarray())
-
         self.movies = self.data.movies
+        self.np = Non_Personalized()
+        self.np.fit(data)
 
     def fit(self):
         """
@@ -63,16 +64,15 @@ class Content_Based:
 
         print("Creating the user profiles")
         n_users = self.train.shape[0]
-        user_profiles_tmp: list[int | csr_matrix] = []
+        self.cold_users = []
+        self.user_profiles = []
         for user_index in range(n_users):
-            user_profiles_tmp.append(self._create_user_profile(user_index))
-        average_user_profile: NDArray[np.float64] = np.stack(
-            [x.toarray() for x in user_profiles_tmp if not isinstance(x, int)]
-        ).mean(axis=0)
-        self.user_profiles: list[csr_matrix] = [
-            csr_matrix(average_user_profile) if isinstance(x, int) else x
-            for x in user_profiles_tmp
-        ]
+            profile = self._create_user_profile(user_index)
+            if isinstance(profile, int):
+                self.cold_users.append(profile)
+                self.user_profiles.append(None)
+            else:
+                self.user_profiles.append(profile)
 
     def _get_movie_vector(self, movie_index: int) -> spmatrix:
         """
@@ -92,16 +92,21 @@ class Content_Based:
         Create user profile by averaging the k most liked movies' genres and tags
         If a user has no liked movies return the index and let the caller deal with it
         """
-        ratings = self.train[user_index, :].tolist()
+        ratings = self.train[user_index, :]
         rated_indices = np.nonzero(ratings)[0]
 
-        if len(rated_indices) == 0:
-            # No liked movies
+        # Cold user
+        if len(rated_indices) < 30:
             return user_index
 
+        user_bias = self.data.average_user_rating[user_index]
+        liked_indices = np.nonzero(ratings - user_bias > 0)[0]
+        if len(liked_indices) == 0:
+            liked_indices = rated_indices
+        # k = int(0.01 * len(liked_indices)) + 1
         # Sort rated items by user's ratings in descending order
         sorted_indices = sorted(
-            rated_indices, key=lambda index: ratings[index], reverse=True
+            liked_indices, key=lambda index: ratings[index], reverse=True  # type: ignore
         )[:k]
 
         # Collect movie vectors and corresponding weights based on ratings
@@ -130,11 +135,16 @@ class Content_Based:
         """
         Compute the top n recommendations for given user index
         """
+        # print(user_index)
+        if user_index in self.cold_users:
+            user_id = self.data.user_index_to_id[user_index]
+            return self.np.get_n_highest_rated(user_id, n).tolist()
+
         user_profile = self.user_profiles[user_index]
         already_watched_indices = self.train[user_index, :].nonzero()[0]
 
-        distances, neighbors = self.knn_model.kneighbors(
-            user_profile, n + len(already_watched_indices), True
+        neighbors = self.knn_model.kneighbors(
+            user_profile, n + len(already_watched_indices), False
         )
         movie_ids = [
             self.sim_index_to_movie_id[neighbor]
@@ -173,51 +183,57 @@ class Content_Based:
         n_users = self.data.test.shape[0]
         test = self.data.test.toarray()
 
-        def aux(user_index: int):
-            n = 10
-            recommended_ids = self.get_top_n_recommendations(user_index, n)
-            recommended_indices = [
-                self.data.item_id_to_index[id] for id in recommended_ids
-            ]
-
-            ratings = test[user_index, :]
-            relevant_items_indices = np.nonzero(ratings)[0].tolist()
-
-            n_relevant = len(relevant_items_indices)
-
-            if n_relevant == 0:
-                n_relevant = 1
-
-            relevant_recommended = np.intersect1d(
-                relevant_items_indices, recommended_indices
-            )
-
-            precision = len(relevant_recommended) / len(recommended_indices)
-            recall = len(relevant_recommended) / n_relevant
-            arhr = self._average_reciprocal_hit_rank(
-                recommended_indices, relevant_items_indices
-            )
-
-            ndcg = self._ndcg(recommended_indices, relevant_items_indices)
-
-            return precision, recall, arhr, ndcg
-
         precisions = []
         recalls = []
+        f1_scores = []
         arhrs = []
         ndcgs = []
         for user_index in range(n_users):
-            if test[user_index, :].nonzero()[0].size > 0:
-                res = aux(user_index)
-                if res:
-                    precision, recall, arhr, ndcg = res
-                    precisions.append(precision)
-                    recalls.append(recall)
-                    arhrs.append(arhr)
-                    ndcgs.append(ndcg)
+            ratings = test[user_index, :]
+            if ratings.any():
+                recommended_ids = self.get_top_n_recommendations(user_index, 10)
+                recommended_indices = [
+                    self.data.item_id_to_index[id] for id in recommended_ids
+                ]
+
+                relevant_items_indices = np.nonzero(ratings)[0].tolist()
+
+                n_relevant = len(relevant_items_indices)
+
+                if n_relevant == 0:
+                    n_relevant = 1
+
+                relevant_recommended = np.intersect1d(
+                    relevant_items_indices, recommended_indices
+                )
+
+                precision = len(relevant_recommended) / len(recommended_indices)
+                recall = len(relevant_recommended) / n_relevant
+                arhr = self._average_reciprocal_hit_rank(
+                    recommended_indices, relevant_items_indices
+                )
+                ndcg = self._ndcg(recommended_indices, relevant_items_indices)
+                f1 = (
+                    2 * (precision * recall) / (precision + recall)
+                    if (precision + recall) > 0
+                    else 0
+                )
+
+                precisions.append(precision)
+                recalls.append(recall)
+                f1_scores.append(f1)
+                arhrs.append(arhr)
+                ndcgs.append(ndcg)
         precisions = np.array(precisions)
         recalls = np.array(recalls)
+        f1_scores = np.array(f1_scores)
         arhrs = np.array(arhrs)
         ndcgs = np.array(ndcgs)
 
-        return (np.mean(precisions), np.mean(recalls), np.mean(arhrs), np.mean(ndcgs))
+        return (
+            np.mean(precisions),
+            np.mean(recalls),
+            np.mean(f1_scores),
+            np.mean(arhrs),
+            np.mean(ndcgs),
+        )
