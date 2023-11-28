@@ -8,10 +8,28 @@ from scipy.sparse import csr_matrix, spmatrix
 from utils import lists_str_join
 
 
+def z_score_norm(ratings):
+    # Calculate mean and standard deviation of non-zero ratings
+    non_zero_ratings = ratings[ratings != 0]
+    mean_rating = np.mean(non_zero_ratings)
+    std_rating = np.std(non_zero_ratings)
+
+    # Apply z-score normalization only to non-zero values
+    normalized_ratings = np.zeros_like(ratings, dtype=np.float64)
+    non_zero_indices = ratings != 0
+    normalized_ratings[non_zero_indices] = (
+        ratings[non_zero_indices] - mean_rating
+    ) / std_rating
+
+    return normalized_ratings
+
+
 class Content_Based:
     def __init__(self, data: Data):
         self.data = data
-        self.train: NDArray[np.float64] = self.data.train.toarray()
+
+        self.train: NDArray[np.float64] = z_score_norm(self.data.train.toarray())
+
         self.movies = self.data.movies
 
     def fit(self):
