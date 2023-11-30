@@ -1,14 +1,14 @@
 from data import Data
-from models import MF, ALS_MR, ALS, Neighborhood_Based
+from models import SVD, ALS_MR, ALS, Neighborhood_Based
 from pyspark_model import pyspark_als
 
 
 def cf(data: Data):
-    # # Matrix Factorization
-    # mf = MF()
-    # mf.fit(data.train)
+    # # Singular Value Decomposition
+    # svd = SVD()
+    # svd.fit(data.train)
     # print(
-    #     f"MF MAE: {mf.accuracy_mae(data.test)}, MF RMSE: {mf.accuracy_rmse(data.test)}"
+    #     f"SVD MAE: {svd.accuracy_mae(data.test)}, SVD RMSE: {svd.accuracy_rmse(data.test)}"
     # )
 
     # # Alternating Least Squares

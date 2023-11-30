@@ -2,11 +2,11 @@ from itertools import product
 import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import coo_array
-from ..CF_Base import CF_Base
+from ..MF_Base import MF_Base
 from utils import RandomSingleton
 
 
-class MF(CF_Base):
+class SVD(MF_Base):
     """
     Matrix Factorization approach for Collaborative Filtering. Uses sparse arrays and minibatch gradient descent
     """
@@ -103,9 +103,9 @@ class MF(CF_Base):
         return self._generic_cv_hyper("MF", train_set, test_set, prod)
 
 
-def cv_hyper_mf_helper(train_set: coo_array, test_set: coo_array):
+def cv_hyper_svd_helper(train_set: coo_array, test_set: coo_array):
     print("Grid Search Cross Validation for MF")
-    mf = MF(verbose=False)
+    mf = SVD(verbose=False)
     n_factors_range = np.arange(2, 20, 2)
     epochs_range = np.arange(10, 50, 10)
     lr_range = np.arange(0.001, 0.1, 0.01)

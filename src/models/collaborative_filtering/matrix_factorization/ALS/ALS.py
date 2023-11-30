@@ -2,11 +2,11 @@ from itertools import product
 from typing import Literal
 import numpy as np
 from scipy.sparse import coo_array
-from ..CF_Base import CF_Base
+from ..MF_Base import MF_Base
 from utils import RandomSingleton
 
 
-class ALS(CF_Base):
+class ALS(MF_Base):
     """
     Concrete class for Alternating Least Squares recommender system
     """

@@ -1,9 +1,9 @@
 from .collaborative_filtering import (
-    MF,
+    SVD,
     ALS,
     ALS_MR,
     cv_hyper_als_helper,
-    cv_hyper_mf_helper,
+    cv_hyper_svd_helper,
     cv_hyper_als_mr_helper,
     Neighborhood_Based,
 )

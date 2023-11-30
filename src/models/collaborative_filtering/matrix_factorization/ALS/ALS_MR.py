@@ -1,6 +1,6 @@
 from itertools import product
 from typing import Literal
-from ..CF_Base import CF_Base
+from ..MF_Base import MF_Base
 import numpy as np
 from pyspark import RDD, SparkContext
 from utils import RandomSingleton
@@ -8,7 +8,7 @@ from scipy.sparse import coo_array
 from numpy.typing import NDArray
 
 
-class ALS_MR(CF_Base):
+class ALS_MR(MF_Base):
     """
     Concrete class for Map Reduce Alternating Least Squares recommender system
     """
