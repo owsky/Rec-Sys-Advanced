@@ -5,7 +5,7 @@ from .collaborative_filtering import (
     cv_hyper_als_helper,
     cv_hyper_mf_helper,
     cv_hyper_als_mr_helper,
-    Nearest_Neighbors,
+    Neighborhood_Based,
 )
 from .non_personalized import Non_Personalized
 from .content_based import Content_Based

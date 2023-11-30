@@ -11,6 +11,9 @@ class MF(CF_Base):
     Matrix Factorization approach for Collaborative Filtering. Uses sparse arrays and minibatch gradient descent
     """
 
+    def __init__(self, verbose=True):
+        self.verbose = verbose
+
     def fit(
         self,
         train_set: coo_array,
@@ -22,7 +25,8 @@ class MF(CF_Base):
         lr_decay_factor: float = 0.9,
         max_grad_norm: float | None = 1.0,
     ):
-        print("Fitting the Matrix Factorization model...")
+        if self.verbose:
+            print("Fitting the Matrix Factorization model...")
         num_users, num_items = train_set.shape
         self.lr = lr
         self.lr_decay_factor = lr_decay_factor
@@ -78,12 +82,12 @@ class MF(CF_Base):
         self,
         train_set: coo_array,
         test_set: coo_array,
-        n_factors_range: list[int],
-        epochs_range: list[int],
-        lr_range: list[float],
-        reg_range: list[float],
-        batch_size_range: list[int],
-        lr_decay_factor_range: list[float],
+        n_factors_range: list[int] | NDArray[np.int64],
+        epochs_range: list[int] | NDArray[np.int64],
+        lr_range: list[float] | NDArray[np.float64],
+        reg_range: list[float] | NDArray[np.float64],
+        batch_size_range: list[int] | NDArray[np.int64],
+        lr_decay_factor_range: list[float] | NDArray[np.float64],
     ):
         """
         Define the hyperparameter ranges required for crossvalidation, compute the product and invoke the super class' method
@@ -101,12 +105,12 @@ class MF(CF_Base):
 
 def cv_hyper_mf_helper(train_set: coo_array, test_set: coo_array):
     print("Grid Search Cross Validation for MF")
-    mf = MF()
-    n_factors_range = [8, 10, 12]
-    epochs_range = [10, 20, 30]
-    lr_range = [0.005, 0.009, 0.015]
-    reg_range = [0.001, 0.002, 0.003]
-    batch_size_range = [2, 4, 8, 16]
+    mf = MF(verbose=False)
+    n_factors_range = np.arange(2, 20, 2)
+    epochs_range = np.arange(10, 50, 10)
+    lr_range = np.arange(0.001, 0.1, 0.01)
+    reg_range = np.arange(0.001, 0.1, 0.1)
+    batch_size_range = [1, 2, 4, 8, 16, 32]
     lr_decay_factor_range = [0.5, 0.9, 0.99]
     mf.cross_validate_hyperparameters(
         train_set,

@@ -28,7 +28,7 @@ class CF_Base(ABC):
             raise RuntimeError("Model untrained, invoke fit before predicting")
         return np.dot(self.P[u, :], self.Q[i, :].T)
 
-    def _get_cold_start_indices(self, threshold=0):
+    def _get_cold_start_indices(self, threshold=1):
         """
         Return the indices of the users and items in the train set with less ratings than the threshold
         """
@@ -91,7 +91,7 @@ class CF_Base(ABC):
         Helper function invoked by the concrete classes to compute and output the results of hyperparameter crossvalidation
         """
         results = grid_search(self, train_set, test_set, prod, sequential)
-        results = sorted(results, key=lambda x: (x[1], x[2]))
+        results = sorted(results, key=lambda x: (x[1], x[2]))[:10]
         table = []
         best_params = ()
         for i, result in enumerate(results):

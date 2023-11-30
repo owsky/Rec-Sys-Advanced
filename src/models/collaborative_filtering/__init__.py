@@ -6,4 +6,4 @@ from .alternating_least_squares import (
     ALS_MR,
     cv_hyper_als_mr_helper,
 )
-from .neighborhood_based import Nearest_Neighbors
+from .neighborhood_based import Neighborhood_Based

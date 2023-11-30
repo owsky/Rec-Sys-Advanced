@@ -8,7 +8,7 @@ from data import Data
 from scipy.stats import pearsonr
 
 
-class Nearest_Neighbors:
+class Neighborhood_Based:
     errors: list[float] | None = None
 
     def fit(
@@ -53,10 +53,8 @@ class Nearest_Neighbors:
             self.similarity_matrix[index, :] = result
 
         # Copy the top half of the similarity matrix into the bottom half, alongside the main diagonal
-        rows, cols = self.similarity_matrix.shape
-        for i in range(rows):
-            for j in range(i + 1, cols):
-                self.similarity_matrix[j, i] = self.similarity_matrix[i, j]
+        self.similarity_matrix += self.similarity_matrix.T
+        return self
 
     def calculate_similarity(self, i: int, dim: int) -> NDArray[np.float64]:
         """

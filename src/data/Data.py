@@ -1,3 +1,4 @@
+import math
 from typing import Literal
 import numpy as np
 import pandas as pd
@@ -42,14 +43,6 @@ class Data:
                 self.new_user_index += 1
 
             item_index = self.item_id_to_index[item_id]
-
-            # if item_id in self.item_id_to_index:
-            #     item_index = self.item_id_to_index[item_id]
-            # else:
-            #     item_index = self.new_item_index
-            #     self.item_id_to_index[item_id] = item_index
-            #     self.item_index_to_id[item_index] = item_id
-            #     self.new_item_index += 1
 
             data.append(rating)
             row_indices.append(user_index)
@@ -109,7 +102,6 @@ class Data:
         shape = (df["userId"].nunique(), self.how_many_unique_movie_ids)
 
         df = df.sort_values(by="timestamp")
-        # df = df.drop(columns=["timestamp"])
         split_index = int(test_size * (1 - len(df)))
         train = df.iloc[:split_index]
         self.train_ratings_df = train
@@ -152,7 +144,7 @@ class Data:
         Load the movies information as DataFrame
         """
         movies_df = pd.read_csv(
-            self.data_path + "movies_filtered.csv",
+            self.data_path + "movies.csv",  # "movies_filtered.csv",
             dtype={"movieId": int, "title": str, "genres": str},
         )
 

@@ -1,10 +1,7 @@
 from typing import Literal
-from joblib import Parallel, delayed
 from scipy.sparse import csr_array
 import numpy as np
 from numpy.typing import NDArray
-from pandas import DataFrame
-from tqdm import tqdm
 from data import Data
 
 
@@ -58,7 +55,10 @@ class Non_Personalized:
         n_users = self.data.test.shape[0]
         test = self.data.test.todense()
 
-        def aux(user_index: int):
+        precisions = []
+        recalls = []
+
+        for user_index in range(n_users):
             user_id = self.data.index_to_id(user_index, "user")
             if algorithm == "most_popular":
                 recommendations = self.get_n_most_popular(user_id, 10)
@@ -73,28 +73,13 @@ class Non_Personalized:
             ]
             relevant_recommended = np.intersect1d(recommended_ids, relevant_items_ids)
 
+            # Ignore user if they already watched everything or if there are no ratings in test set
             if len(recommended_ids) == 0 or len(relevant_items_ids) == 0:
-                return None
+                continue
 
             precision = len(relevant_recommended) / len(recommended_ids)
             recall = len(relevant_recommended) / len(relevant_items_ids)
-            return precision, recall
+            precisions.append(precision)
+            recalls.append(recall)
 
-        results = [
-            result
-            for result in Parallel(n_jobs=-1, backend="loky")(
-                delayed(aux)(user_index)
-                for user_index in tqdm(
-                    range(n_users), desc="Computing accuracy metrics"
-                )
-            )
-            if result is not None
-        ]
-
-        precision = []
-        recall = []
-        for p, r in results:
-            precision.append(p)
-            recall.append(r)
-
-        return np.mean(precision), np.mean(recall)
+        return np.mean(precisions), np.mean(recalls)
