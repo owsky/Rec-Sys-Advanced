@@ -1,102 +1,125 @@
 from itertools import product
-from typing import Literal
-from ..MF_Base import MF_Base
+from typing import Iterable, Literal
+from data import Data
+from ..MF_Base import CF_Base
 import numpy as np
-from pyspark import RDD, SparkContext
+from pyspark import RDD, Accumulator, AccumulatorParam, SparkContext
 from utils import RandomSingleton
 from scipy.sparse import coo_array
 from numpy.typing import NDArray
 
 
-class ALS_MR(MF_Base):
+class ALS_MR(CF_Base):
     """
     Concrete class for Map Reduce Alternating Least Squares recommender system
     """
 
-    spark: SparkContext | None = None
+    def fit(self, data: Data, n_factors=10, epochs=10, reg=0.01):
+        class DictAccumulator(AccumulatorParam):
+            """
+            Custom dictionary accumulator, needed to propagate the factors updates across the cluster
+            """
 
-    def fit(self, train_set: coo_array, n_factors=10, epochs=10, reg=0.01):
-        print("Fitting the Map Reduce Alternating Least Squares model...")
-        # Spark initialization
-        if self.spark is None:
-            self.spark = SparkContext(
-                master="local", appName="Alternating Least Square"
-            )
-            self.spark.setLogLevel("WARN")
+            def zero(self, init_value: dict[int, NDArray[np.float64]]):
+                """
+                Initialize the accumulator with a given dictionary
+                """
+                return init_value
 
-        self.train_set = train_set
-        ratings = self.spark.broadcast(self.train_set)
-        n_users, n_items = self.train_set.shape
-
-        self.P = RandomSingleton.get_random_normal(
-            loc=0, scale=0.1, size=(n_users, n_factors)
-        )
-        self.Q = RandomSingleton.get_random_normal(
-            loc=0, scale=0.1, size=(n_items, n_factors)
-        )
-
-        # Creating the RDDs for both user and item factors, alongside u and i indices
-        P_RDD: RDD[tuple[NDArray[np.float64], int]] = self.spark.parallelize(
-            self.P
-        ).zipWithIndex()
-        Q_RDD: RDD[tuple[NDArray[np.float64], int]] = self.spark.parallelize(
-            self.Q
-        ).zipWithIndex()
-
-        for _ in range(epochs):
-
-            def get_observed(
-                train_set: coo_array, index: int, kind: Literal["user", "item"]
+            def addInPlace(
+                self,
+                currDict: dict[int, NDArray[np.float64]],
+                newDict: dict[int, NDArray[np.float64]],
             ):
                 """
-                Return indices and actual values of either a user's or an item's observed ratings.
-                Needs to be defined in this scope to avoid PySpark pickling errors
+                Substitute into the current dictionary all new entries provided by the new dictionary
                 """
-                row, col, data = (train_set.row, train_set.col, train_set.data)
-                if kind == "user":
-                    indices = np.where((row == index))[0]
-                    sliced_axis = col[indices]
-                else:
-                    indices = np.where((col == index))[0]
-                    sliced_axis = row[indices]
-                sliced_data = data[indices]
-                return (sliced_axis, sliced_data)
+                for key, value in newDict.items():
+                    currDict.update({key: value})
+                return currDict
 
-            def update_factors(
-                x: tuple[NDArray[np.float64], int],
-                fixed_factor: NDArray,
-                dim: Literal["user", "item"],
-            ) -> tuple[NDArray[np.float64], int]:
-                """
-                Map function that computes the current factors using the other fixed factors
-                """
-                _, idx = x
-                observed_indices, observed_values = get_observed(
-                    ratings.value, idx, dim
+        print("Fitting the Map Reduce Alternating Least Squares model...")
+        self.train_set = data.train
+
+        # Spark initialization
+        spark = SparkContext(master="local", appName="Alternating Least Square")
+        spark.setLogLevel("ERROR")
+
+        n_users, n_items = self.train_set.shape
+
+        # Create and cache the ratings RDD
+        ratings_RDD: RDD[tuple[int, int, float]] = spark.parallelize(
+            list(zip(self.train_set.row, self.train_set.col, self.train_set.data))
+        ).cache()
+
+        # Initialize the factors' dictionaries
+        P_shape = (n_users, n_factors)
+        P = RandomSingleton.get_random_normal(loc=0, scale=0.1, size=P_shape)
+        Q_shape = (n_items, n_factors)
+        Q = RandomSingleton.get_random_normal(loc=0, scale=0.1, size=Q_shape)
+
+        P_dict: dict[int, NDArray[np.float64]] = {u: P[u] for u in range(n_users)}
+        Q_dict: dict[int, NDArray[np.float64]] = {i: Q[i] for i in range(n_items)}
+
+        P_acc = spark.accumulator(P_dict, DictAccumulator())
+        Q_acc = spark.accumulator(Q_dict, DictAccumulator())
+
+        def dictAccToArr(
+            dict: Accumulator[dict[int, NDArray[np.float64]]], shape: tuple[int, int]
+        ) -> NDArray[np.float64]:
+            """
+            Helper function that converts accumulators into numpy arrays
+            """
+            matrix = np.zeros(shape)
+            indices, values = zip(*dict.value.items())
+            matrix[indices, :] = values
+            return matrix
+
+        def compute_factors(
+            index: int,
+            r_iter: Iterable[tuple[int, int, float]],
+            fixed_factor: NDArray[np.float64],
+            kind: Literal["user", "item"],
+        ):
+            """
+            Map function that computes the updates for the factors and pushes them onto the accumulator
+            """
+            nonlocal P_acc, Q_acc
+            r = np.array([x[2] for x in r_iter])
+            nz = np.nonzero(r)
+
+            new_factor = (
+                r[nz]
+                @ fixed_factor[nz]
+                @ np.linalg.inv(
+                    fixed_factor[nz].T @ fixed_factor[nz] + reg * np.eye(n_factors)
                 )
-                res = (
-                    observed_values @ fixed_factor[observed_indices, :]
-                ) @ np.linalg.inv(
-                    np.transpose(fixed_factor[observed_indices, :])
-                    @ fixed_factor[observed_indices, :]
-                    + reg * np.eye(n_factors)
-                )
-                return res, idx
+            )
 
-            # Fix item factors and update user factors
-            Q = np.array([x[0] for x in Q_RDD.collect()])
-            P_RDD = P_RDD.map(lambda x: update_factors(x, Q, "user"))
+            if kind == "user":
+                P_acc.add({index: new_factor})
+            else:
+                Q_acc.add({index: new_factor})
 
-            # Fix user factors and update item factors
-            P = np.array([x[0] for x in P_RDD.collect()])
-            Q_RDD = Q_RDD.map(lambda x: update_factors(x, P, "item"))
+        for _ in range(epochs):
+            # Fix items factors and update users factors
+            Q = dictAccToArr(Q_acc, Q_shape)
+            ratings_RDD.groupBy(lambda x: x[0]).foreach(
+                lambda x: compute_factors(x[0], x[1], Q, "user")
+            )
+
+            # Fix users factors and update items factors
+            P = dictAccToArr(P_acc, P_shape)
+            ratings_RDD.groupBy(lambda x: x[1]).foreach(
+                lambda x: compute_factors(x[0], x[1], P, "item")
+            )
 
         # Collect the final RDD results into the class' factors
-        self.P = np.array([x[0] for x in P_RDD.collect()])
-        self.Q = np.array([x[0] for x in Q_RDD.collect()])
+        self.P = dictAccToArr(P_acc, P_shape)
+        self.Q = dictAccToArr(Q_acc, Q_shape)
 
         # Stop the Spark application
-        self.spark = self.spark.stop()
+        spark.stop()
 
     def cross_validate_hyperparameters(
         self,

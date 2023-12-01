@@ -91,4 +91,6 @@ tags.to_csv(os.path.join(script_directory, "preprocessed", "tags.csv"), index=Fa
 movies_small.to_csv(
     os.path.join(script_directory, "preprocessed", "movies.csv"), index=False
 )
-ratings_small.to_csv(os.path.join(script_directory, "preprocessed", "ratings.csv"))
+ratings_small.to_csv(
+    os.path.join(script_directory, "preprocessed", "ratings.csv"), index=False
+)

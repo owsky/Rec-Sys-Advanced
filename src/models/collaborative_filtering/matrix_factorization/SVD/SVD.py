@@ -2,11 +2,11 @@ from itertools import product
 import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import coo_array
-from ..MF_Base import MF_Base
+from ..MF_Base import CF_Base
 from utils import RandomSingleton
 
 
-class SVD(MF_Base):
+class SVD(CF_Base):
     """
     Matrix Factorization approach for Collaborative Filtering. Uses sparse arrays and minibatch gradient descent
     """

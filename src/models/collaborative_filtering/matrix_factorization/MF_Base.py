@@ -9,7 +9,7 @@ from tabulate import tabulate
 from cross_validation import grid_search
 
 
-class MF_Base(ABC):
+class CF_Base(ABC):
     """
     Base class for Collaborative Filtering recommender systems
     """
