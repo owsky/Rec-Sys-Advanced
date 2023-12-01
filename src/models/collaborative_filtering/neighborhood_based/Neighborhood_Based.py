@@ -1,4 +1,3 @@
-from math import sqrt
 from typing import Literal
 from joblib import Parallel, delayed
 import numpy as np
@@ -7,7 +6,7 @@ from tqdm import tqdm
 from data import Data
 from scipy.stats import pearsonr
 from ..CF_Base import CF_Base
-from scipy.sparse import coo_array
+from typing_extensions import Self
 
 
 class Neighborhood_Based(CF_Base):
@@ -19,7 +18,7 @@ class Neighborhood_Based(CF_Base):
         self.kind = kind
         self.similarity = similarity
 
-    def fit(self, data: Data):
+    def fit(self, data: Data) -> Self:
         """
         Compute the similarity matrix for the input data using either Pearson Correlation
         or Adjusted Cosine Similarity. Parameter kind determines whether user-user or item-item strategy

@@ -6,6 +6,7 @@ from numpy.typing import NDArray
 from tabulate import tabulate
 from cross_validation import grid_search
 from ..CF_Base import CF_Base
+from typing_extensions import Self
 
 
 class MF_Base(CF_Base, ABC):
@@ -20,7 +21,7 @@ class MF_Base(CF_Base, ABC):
         self.Q: NDArray[np.float64] = np.array([])
 
     @abstractmethod
-    def fit(self, R: coo_array) -> "MF_Base":
+    def fit(self, R: coo_array) -> Self:
         pass
 
     def predict(self, u: int, i: int) -> float:

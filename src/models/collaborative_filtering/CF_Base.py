@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 import math
 from typing import Callable
+from typing_extensions import Self
 from scipy.sparse import coo_array
 import numpy as np
 from numpy.typing import NDArray
@@ -10,7 +11,7 @@ class CF_Base(ABC):
     train_set: coo_array | NDArray[np.float64] | None = None
 
     @abstractmethod
-    def fit(self) -> "CF_Base":
+    def fit(self) -> Self:
         pass
 
     @abstractmethod

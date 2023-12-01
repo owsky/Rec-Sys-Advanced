@@ -4,6 +4,7 @@ from numpy.typing import NDArray
 from scipy.sparse import coo_array
 from ..MF_Base import MF_Base
 from utils import RandomSingleton
+from typing_extensions import Self
 
 
 class SVD(MF_Base):
@@ -24,7 +25,7 @@ class SVD(MF_Base):
         batch_size: int = 8,
         lr_decay_factor: float = 0.9,
         max_grad_norm: float | None = 1.0,
-    ):
+    ) -> Self:
         if self.verbose:
             print("Fitting the Matrix Factorization model...")
         num_users, num_items = train_set.shape

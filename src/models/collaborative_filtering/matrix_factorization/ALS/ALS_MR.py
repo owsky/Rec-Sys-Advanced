@@ -7,6 +7,7 @@ from pyspark import RDD, Accumulator, AccumulatorParam, SparkContext
 from utils import RandomSingleton
 from scipy.sparse import coo_array
 from numpy.typing import NDArray
+from typing_extensions import Self
 
 
 class ALS_MR(MF_Base):
@@ -14,7 +15,7 @@ class ALS_MR(MF_Base):
     Concrete class for Map Reduce Alternating Least Squares recommender system
     """
 
-    def fit(self, data: Data, n_factors=10, epochs=10, reg=0.01):
+    def fit(self, data: Data, n_factors=10, epochs=10, reg=0.01) -> Self:
         class DictAccumulator(AccumulatorParam):
             """
             Custom dictionary accumulator, needed to propagate the factors updates across the cluster
@@ -120,6 +121,7 @@ class ALS_MR(MF_Base):
 
         # Stop the Spark application
         spark.stop()
+        return self
 
     def cross_validate_hyperparameters(
         self,

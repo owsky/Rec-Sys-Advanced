@@ -4,6 +4,7 @@ import numpy as np
 from scipy.sparse import coo_array
 from ..MF_Base import MF_Base
 from utils import RandomSingleton
+from typing_extensions import Self
 
 
 class ALS(MF_Base):
@@ -11,7 +12,7 @@ class ALS(MF_Base):
     Concrete class for Alternating Least Squares recommender system
     """
 
-    def fit(self, train_set: coo_array, n_factors=10, epochs=10, reg=0.01):
+    def fit(self, train_set: coo_array, n_factors=10, epochs=10, reg=0.01) -> Self:
         print("Fitting the sequential Alternating Least Squares model...")
         self.train_set = train_set
 
