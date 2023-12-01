@@ -7,3 +7,4 @@ from .matrix_factorization import (
     ALS_MR,
     cv_hyper_als_mr_helper,
 )
+from .ensemble import Ensemble

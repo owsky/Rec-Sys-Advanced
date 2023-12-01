@@ -1,38 +1,40 @@
 from math import sqrt
-from typing import Callable, Literal
+from typing import Literal
 from joblib import Parallel, delayed
 import numpy as np
 from numpy.typing import NDArray
 from tqdm import tqdm
 from data import Data
 from scipy.stats import pearsonr
+from ..CF_Base import CF_Base
+from scipy.sparse import coo_array
 
 
-class Neighborhood_Based:
-    errors: list[float] | None = None
+class Neighborhood_Based(CF_Base):
+    train_set: NDArray[np.float64] | None
 
-    def fit(
-        self,
-        data: Data,
-        kind: Literal["user", "item"],
-        similarity: Literal["pearson", "cosine"],
+    def __init__(
+        self, kind: Literal["user", "item"], similarity: Literal["pearson", "cosine"]
     ):
+        self.kind = kind
+        self.similarity = similarity
+
+    def fit(self, data: Data):
         """
         Compute the similarity matrix for the input data using either Pearson Correlation
         or Adjusted Cosine Similarity. Parameter kind determines whether user-user or item-item strategy
         for recommendations is adopted.
         """
         print(
-            f"Fitting the {kind}-based Neighborhood Filtering model with {similarity}..."
+            f"Fitting the {self.kind}-based Neighborhood Filtering model with {self.similarity}..."
         )
         self.data = data
         self.ratings = data.train.todense().astype(np.float64)
-        self.test = data.test.todense().astype(np.float64)
-        self.kind = kind
-        self.similarity = similarity
-        if kind == "user":
+        self.train_set = self.ratings
+
+        if self.kind == "user":
             dim = data.train.shape[0]
-        elif kind == "item":
+        elif self.kind == "item":
             dim = data.train.shape[1]
         else:
             raise RuntimeError("Wrong value for parameter kind")
@@ -44,7 +46,10 @@ class Neighborhood_Based:
             delayed(self.calculate_similarity)(i, dim)
             for i in tqdm(
                 range(dim),
-                desc="Computing " + kind + "-based similarities using " + similarity,
+                desc="Computing "
+                + self.kind
+                + "-based similarities using "
+                + self.similarity,
             )
         )
 
@@ -149,103 +154,61 @@ class Neighborhood_Based:
 
         return num / den
 
-    def predict_all(self, k=50, support=3):
-        """
-        Compute predictions for each non-zero rating in the test set.
-        k is the number of neighbors to consider and support is the minimum number
-        of neighbors required for computing the predictions.
-        """
-        predicted_ratings = np.zeros_like(self.test)
-        # Non-zero ratings' indices
-        nz_indices = zip(*self.test.nonzero())
+    def predict(self, u: int, i: int, k=50, support=3):
+        # Item-based model
+        if self.kind == "item":
+            # Extract the top k neighbors of the item i which have been rated by user u
+            similarities = self.similarity_matrix[i, :]
+            top_neighbors = np.argsort(similarities)[::-1]
+            valid_neighbors = top_neighbors[
+                (self.ratings[u, top_neighbors] != 0)
+                & (self.similarity_matrix[i, top_neighbors] > 0)
+            ][:k]
 
-        for u, i in nz_indices:
-            # Item-based model
-            if self.kind == "item":
-                # Extract the top k neighbors of the item i which have been rated by user u
-                similarities = self.similarity_matrix[i, :]
-                top_neighbors = np.argsort(similarities)[::-1]
-                valid_neighbors = top_neighbors[
-                    (self.ratings[u, top_neighbors] != 0)
-                    & (self.similarity_matrix[i, top_neighbors] > 0)
-                ][:k]
+            # Skip if support is not met, i.e., ^r(u,i)=0
+            if len(valid_neighbors) < support:
+                return None
 
-                # Skip if support is not met, i.e., ^r(u,i)=0
-                if len(valid_neighbors) < support:
-                    continue
+            # Biases required for rating normalization
+            bias_i = self.data.average_item_rating[i]
+            bias_j = self.data.average_item_rating[valid_neighbors]
 
-                # Biases required for rating normalization
-                bias_i = self.data.average_item_rating[i]
-                bias_j = self.data.average_item_rating[valid_neighbors]
+            # Compute the prediction as the adjusted ratings times the similarity score
+            # divided by the sum of the similarities
+            num = np.sum(
+                self.similarity_matrix[i, valid_neighbors]
+                * (self.ratings[u, valid_neighbors] - bias_j)
+            )
+            den = np.sum(self.similarity_matrix[i, valid_neighbors])
 
-                # Compute the prediction as the adjusted ratings times the similarity score
-                # divided by the sum of the similarities
-                num = np.sum(
-                    self.similarity_matrix[i, valid_neighbors]
-                    * (self.ratings[u, valid_neighbors] - bias_j)
-                )
-                den = np.sum(self.similarity_matrix[i, valid_neighbors])
+            # Avoid division by zero
+            if den != 0:
+                return bias_i + float(num) / float(den)
+        else:
+            # Extract the top k neighbors of the user u who have rated the item i
+            similarities = self.similarity_matrix[u, :]
+            top_neighbors = np.argsort(similarities)[::-1]
+            valid_neighbors = top_neighbors[
+                (self.ratings[top_neighbors, i] != 0)
+                & (self.similarity_matrix[u, top_neighbors] > 0)
+            ][:k]
 
-                # Avoid division by zero
-                if den != 0:
-                    predicted_ratings[u, i] = bias_i + float(num) / float(den)
-            else:
-                # Extract the top k neighbors of the user u who have rated the item i
-                similarities = self.similarity_matrix[u, :]
-                top_neighbors = np.argsort(similarities)[::-1]
-                valid_neighbors = top_neighbors[
-                    (self.ratings[top_neighbors, i] != 0)
-                    & (self.similarity_matrix[u, top_neighbors] > 0)
-                ][:k]
+            # Skip if support is not met, i.e., ^r(u,i)=0
+            if len(valid_neighbors) < support:
+                return None
 
-                # Skip if support is not met, i.e., ^r(u,i)=0
-                if len(valid_neighbors) < support:
-                    continue
+            # Biases required for rating normalization
+            bias_u = self.data.average_user_rating[u]
+            bias_v = self.data.average_user_rating[valid_neighbors]
 
-                # Biases required for rating normalization
-                bias_u = self.data.average_user_rating[u]
-                bias_v = self.data.average_user_rating[valid_neighbors]
+            # Compute the prediction as the adjusted ratings times the similarity score
+            # divided by the sum of the similarities
+            num = np.sum(
+                self.similarity_matrix[u, valid_neighbors]
+                * (self.ratings[valid_neighbors, i] - bias_v)
+            )
+            den = np.sum(self.similarity_matrix[u, valid_neighbors])
 
-                # Compute the prediction as the adjusted ratings times the similarity score
-                # divided by the sum of the similarities
-                num = np.sum(
-                    self.similarity_matrix[u, valid_neighbors]
-                    * (self.ratings[valid_neighbors, i] - bias_v)
-                )
-                den = np.sum(self.similarity_matrix[u, valid_neighbors])
-
-                # Avoid division by zero
-                if den != 0:
-                    predicted_ratings[u, i] = bias_u + float(num) / float(den)
-
-        return predicted_ratings
-
-    def _compute_errors(self, loss: Callable) -> list[float]:
-        predictions = self.predict_all()
-        n_users, n_items = self.test.shape
-
-        errors = [
-            loss(predictions[u, i] - self.test[u, i])
-            for u in range(n_users)
-            for i in range(n_items)
-            if self.test[u, i] != 0 and predictions[u, i] != 0
-        ]
-        return errors
-
-    def accuracy_rmse(self) -> float:
-        """
-        Compute the Root Mean Squared Error on the test set
-        """
-        if self.errors is None:
-            self.errors = self._compute_errors(lambda x: x**2)
-
-        return sqrt(np.mean(self.errors))
-
-    def accuracy_mae(self) -> float:
-        """
-        Compute the Mean Absolute Error on the test set
-        """
-        if self.errors is None:
-            self.errors = self._compute_errors(lambda x: abs(x))
-
-        return float(np.mean(self.errors))
+            # Avoid division by zero
+            if den != 0:
+                return bias_u + float(num) / float(den)

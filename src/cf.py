@@ -1,5 +1,5 @@
 from data import Data
-from models import SVD, ALS_MR, ALS, Neighborhood_Based
+from models import SVD, ALS_MR, ALS, Neighborhood_Based, Ensemble
 
 
 def cf(data: Data):
@@ -25,11 +25,13 @@ def cf(data: Data):
     )
 
     # Nearest Neighbors
-    nn = Neighborhood_Based().fit(data, "user", "cosine")
+    nn = Neighborhood_Based(kind="user", similarity="cosine").fit(data)
     print(
-        f"User-based with Adjusted Cosine Similarity MAE: {nn.accuracy_mae()}, RMSE: {nn.accuracy_rmse()}"
+        f"User-based with Adjusted Cosine Similarity MAE: {nn.accuracy_mae(data.test)}, RMSE: {nn.accuracy_rmse(data.test)}"
     )
-    nn = nn.fit(data, "user", "pearson")
+
+    # Ensemble
+    ens = Ensemble(data=data, svd_model=svd, als_model=als, nn_model=nn)
     print(
-        f"User-based with Pearson Correlation MAE: {nn.accuracy_mae()}, RMSE: {nn.accuracy_rmse()}"
+        f"Ensemble MAE: {ens.accuracy_mae(data.test)}, Ensemble RMSE: {ens.accuracy_rmse(data.test)}"
     )

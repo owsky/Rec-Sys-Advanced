@@ -2,11 +2,11 @@ from itertools import product
 import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import coo_array
-from ..MF_Base import CF_Base
+from ..MF_Base import MF_Base
 from utils import RandomSingleton
 
 
-class SVD(CF_Base):
+class SVD(MF_Base):
     """
     Matrix Factorization approach for Collaborative Filtering. Uses sparse arrays and minibatch gradient descent
     """
@@ -66,6 +66,7 @@ class SVD(CF_Base):
 
                 self.P[users, :] += grad_P
                 self.Q[items, :] += grad_Q
+        return self
 
     def _clip_gradients(
         self, gradient: NDArray[np.float64], max_grad_norm: float | None
