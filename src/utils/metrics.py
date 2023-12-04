@@ -21,6 +21,14 @@ def recall_at_k(
     return len(relevant_recommended) / len(relevant_items)
 
 
+def f1_score(precision: float, recall: float):
+    return (
+        2 * (precision * recall) / (precision + recall)
+        if (precision + recall) > 0
+        else 0
+    )
+
+
 def average_reciprocal_hit_rank(
     relevant_items: list[int] | NDArray[np.int64],
     recommended_items: list[int] | NDArray[np.int64],

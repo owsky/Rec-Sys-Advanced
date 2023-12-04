@@ -9,4 +9,5 @@ from .metrics import (
     recall_at_k,
     average_reciprocal_hit_rank,
     normalized_discounted_cumulative_gain,
+    f1_score,
 )

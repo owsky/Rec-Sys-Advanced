@@ -6,6 +6,7 @@ from numpy.typing import NDArray
 from scipy.sparse import coo_array, csc_array, csr_array
 from data import Data
 from utils.metrics import (
+    f1_score,
     precision_at_k,
     recall_at_k,
     average_reciprocal_hit_rank,
@@ -46,22 +47,18 @@ class Recommender_System(ABC):
         arhrs = []
         ndcgs = []
         for user_index in range(n_users):
-            user_ratings: NDArray[np.float64] = self.data.test.getrow(user_index).data  # type: ignore
-            relevant = get_most_liked_indices(
-                user_ratings, self.data.average_user_rating[user_index], n
-            )
-            recommended = self.top_n(user_index, n)
+            user_id = self.data.user_index_to_id[user_index]
+            relevant = self.data.get_liked_movies_indices(user_id, "test")
+            recommended = [
+                self.data.item_id_to_index[x] for x in self.top_n(user_index, n)
+            ]
 
-            if len(relevant) >= n and len(recommended) >= n:
+            if len(relevant) >= 1 and len(recommended) >= 1:
                 precision = precision_at_k(relevant, recommended, n)
                 recall = recall_at_k(relevant, recommended, n)
-                arhr = average_reciprocal_hit_rank(recommended, relevant)
-                f1 = (
-                    2 * (precision * recall) / (precision + recall)
-                    if (precision + recall) > 0
-                    else 0
-                )
-                ndcg = normalized_discounted_cumulative_gain(recommended, relevant)
+                arhr = average_reciprocal_hit_rank(relevant, recommended)
+                f1 = f1_score(precision, recall)
+                ndcg = normalized_discounted_cumulative_gain(relevant, recommended)
                 precisions.append(precision)
                 recalls.append(recall)
                 arhrs.append(arhr)
