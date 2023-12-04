@@ -3,7 +3,9 @@ import numpy as np
 from numpy.typing import NDArray
 import pandas as pd
 from pandas import DataFrame
-from scipy.sparse import coo_array
+from scipy.sparse import coo_array, csr_array
+
+import data
 
 
 class Data:
@@ -203,3 +205,24 @@ class Data:
         return self.get_movies_from_ids(
             [self.index_to_id(i, "item") for i in movie_indices]
         )
+
+    def get_user_ratings(
+        self, user_id: int, dataset: Literal["train", "test"]
+    ) -> NDArray[np.int64]:
+        user_index = self.user_id_to_index[user_id]
+        arr = self.train if dataset == "train" else self.test
+        return csr_array(arr.getrow(user_index)).toarray()[0]
+
+    def get_liked_movies_indices(
+        self, user_id: int, dataset: Literal["train", "test"]
+    ) -> list[int]:
+        user_ratings = self.get_user_ratings(user_id, dataset)
+        nz = user_ratings.nonzero()
+        if len(user_ratings[nz]) == 0:
+            return []
+        user_index = self.user_id_to_index[user_id]
+        user_bias = (
+            0 if np.std(user_ratings[nz]) == 0 else self.average_user_rating[user_index]
+        )
+        liked_indices = np.flatnonzero(user_ratings - user_bias > 0)
+        return sorted(liked_indices, key=lambda x: user_ratings[x], reverse=True)

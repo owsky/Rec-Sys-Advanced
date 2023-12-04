@@ -1,4 +1,3 @@
-import math
 from typing_extensions import Self
 import numpy as np
 from numpy.typing import NDArray
@@ -6,9 +5,9 @@ from sklearn.metrics import ndcg_score
 from data import Data
 from sklearn.neighbors import NearestNeighbors
 from sklearn.feature_extraction.text import TfidfVectorizer
-from scipy.sparse import csr_array, spmatrix, coo_array
+from scipy.sparse import spmatrix, coo_array, csr_array
 from utils import lists_str_join
-from utils import recall_at_k, get_relevant, precision_at_k, get_most_liked_indices
+from utils import recall_at_k, precision_at_k
 from joblib import Parallel, delayed
 from tqdm import tqdm
 from models.non_personalized import Highest_Rated
@@ -49,11 +48,10 @@ def z_score_norm(ratings: coo_array):
 class Content_Based:
     def __init__(self, data: Data):
         self.data = data
-        self.train = z_score_norm(data.train).tocsr()
-        # self.train = data.train.tocsr()
+        # self.train = z_score_norm(data.train).tocsr()
+        self.train = data.train.tocsr()
         self.movies = self.data.movies
         self.np = Highest_Rated().fit(data)
-        self.np.fit(data)
 
     def fit(self) -> Self:
         """
@@ -125,10 +123,11 @@ class Content_Based:
         Create user profile by averaging the k most liked movies' genres and tags
         If a user has no liked movies return the index and let the caller deal with it
         """
-        user_ratings: NDArray[np.float64] = self.train.getrow(user_index).data  # type: ignore
-        user_bias: float = self.data.average_user_rating[user_index]
+        user_id = self.data.user_index_to_id[user_index]
+        user_ratings = self.data.get_user_ratings(user_id, "train")
+
         k = int(0.4 * len(user_ratings)) + 1
-        user_likes = get_most_liked_indices(user_ratings, user_bias, k)
+        user_likes = self.data.get_liked_movies_indices(user_id, "train")[:k]
 
         # Collect movie vectors and corresponding weights based on ratings
         movie_vectors = np.array(
@@ -148,17 +147,17 @@ class Content_Based:
         """
         Compute the top n recommendations for given user index
         """
-        # print(user_index)
         if user_index in self.cold_users:
-            # user_id = self.data.user_index_to_id[user_index]
             return self.np.top_n(user_index, n).tolist()
 
         user_profile = self.user_profiles[user_index]
-        already_watched_indices = self.train.getrow(user_index).nonzero()[0]
+        already_watched_indices = csr_array(self.data.train.getrow(user_index)).indices
 
-        neighbors = self.knn_model.kneighbors(
-            user_profile, n + len(already_watched_indices), False
-        )
+        n_movies = self.data.train.shape[1]
+        max_neighbors = min(n + len(already_watched_indices), n_movies)
+
+        neighbors = self.knn_model.kneighbors(user_profile, max_neighbors, False)
+
         movie_ids = [
             self.sim_index_to_movie_id[neighbor]
             for neighbor in neighbors[0]
@@ -198,25 +197,26 @@ class Content_Based:
         arhrs = []
         ndcgs = []
         for user_index in range(n_users):
-            user_ratings = self.data.test.getrow(user_index)
-            relevant = get_relevant(
-                user_ratings, self.data.average_user_rating[user_index]
-            )
+            user_ratings = self.data.test.getrow(user_index).toarray()[0]  # type: ignore
+            user_bias = self.data.average_user_rating[user_index]
+            # relevant = get_most_liked_indices(user_ratings, user_bias)
+            user_id = self.data.user_index_to_id[user_index]
+            relevant = self.data.get_liked_movies_indices(user_id, "test")
             recommended = [
                 self.data.item_id_to_index[x]
                 for x in self.get_top_n_recommendations(user_index, n)
             ]
 
-            if len(relevant) >= n and len(recommended) >= n:
+            if len(relevant) >= 1 and len(recommended) >= 1:
                 precision = precision_at_k(relevant, recommended, n)
                 recall = recall_at_k(relevant, recommended, n)
-                arhr = self._average_reciprocal_hit_rank(recommended, relevant.tolist())
+                arhr = self._average_reciprocal_hit_rank(recommended, relevant)
                 f1 = (
                     2 * (precision * recall) / (precision + recall)
                     if (precision + recall) > 0
                     else 0
                 )
-                ndcg = self._ndcg(recommended, relevant.tolist())
+                ndcg = self._ndcg(recommended, relevant)
                 precisions.append(precision)
                 recalls.append(recall)
                 arhrs.append(arhr)

@@ -1,6 +1,5 @@
 import numpy as np
 from numpy.typing import NDArray
-from scipy.sparse import csr_array
 from sklearn.metrics import ndcg_score
 
 
@@ -43,26 +42,3 @@ def normalized_discounted_cumulative_gain(
     binary_relevance = [int(idx in relevant_items) for idx in recommended_items]
     ideal_relevance = sorted(binary_relevance, reverse=True)
     return ndcg_score(np.array([ideal_relevance]), np.array([binary_relevance]))
-
-
-def get_most_liked_indices(
-    user_ratings: NDArray[np.float64], user_bias: float, k: int | None = None
-) -> list[int]:
-    if len(user_ratings[user_ratings != 0]) == 0:
-        return []
-    liked_indices = np.flatnonzero(user_ratings - user_bias > 0)
-    if len(liked_indices) == 0:
-        liked_indices = np.flatnonzero(user_ratings)
-    sorted_indices = sorted(liked_indices, key=lambda x: user_ratings[x], reverse=True)  # type: ignore
-    return sorted_indices if k is None else sorted_indices[:k]
-
-
-def get_relevant(
-    user_ratings: NDArray[np.float64] | csr_array, avg_rating: float
-) -> NDArray[np.int64]:
-    if isinstance(user_ratings, csr_array):
-        ratings = user_ratings.toarray()[0]
-    else:
-        ratings = user_ratings
-
-    return np.array(get_most_liked_indices(ratings, avg_rating))

@@ -6,7 +6,6 @@ from numpy.typing import NDArray
 from scipy.sparse import coo_array, csc_array, csr_array
 from data import Data
 from utils.metrics import (
-    get_most_liked_indices,
     precision_at_k,
     recall_at_k,
     average_reciprocal_hit_rank,
