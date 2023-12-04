@@ -57,12 +57,12 @@ def get_most_liked_indices(
     return sorted_indices if k is None else sorted_indices[:k]
 
 
-# def get_relevant(
-#     user_ratings: NDArray[np.float64] | csr_array, avg_rating: float
-# ) -> NDArray[np.int64]:
-#     if isinstance(user_ratings, csr_array):
-#         ratings = user_ratings.toarray()[0]
-#     else:
-#         ratings = user_ratings
+def get_relevant(
+    user_ratings: NDArray[np.float64] | csr_array, avg_rating: float
+) -> NDArray[np.int64]:
+    if isinstance(user_ratings, csr_array):
+        ratings = user_ratings.toarray()[0]
+    else:
+        ratings = user_ratings
 
-#     return np.array(get_most_liked_indices(ratings, avg_rating))
+    return np.array(get_most_liked_indices(ratings, avg_rating))

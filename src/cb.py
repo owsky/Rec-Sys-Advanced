@@ -5,6 +5,15 @@ from models import Content_Based
 from utils import get_most_liked_indices
 
 
+def pretty_print_accuracy_top_n(m: Content_Based, n=30):
+    precision, recall, f1, arhr, ndcg = m.accuracy_metrics(n)
+    print(
+        f"Precision@k: {precision:.3f}, Recall@k: {recall:.3f}, ",
+        f"F1: {f1:.3f}, Average Reciprocal Hit Rank: {arhr:.3f}, ",
+        f"Normalized Discounted Cumulative Gain: {ndcg:.3f}\n",
+    )
+
+
 def cb(data: Data):
     print("\nContent Based recommender:")
     model = Content_Based(data).fit()
@@ -20,7 +29,7 @@ def cb(data: Data):
     print(f"User {user_id} previously liked:")
     print(data.get_movie_from_indices(likes[:10]))
 
-    recs = model.top_n(user_index, 10)
-    print(data.get_movie_from_indices(recs))
+    recs = model.get_top_n_recommendations(user_index, 10)
+    print(data.get_movies_from_ids(recs))
 
-    model.pretty_print_accuracy_top_n(30)
+    pretty_print_accuracy_top_n(model, 30)

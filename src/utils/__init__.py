@@ -10,4 +10,5 @@ from .metrics import (
     average_reciprocal_hit_rank,
     normalized_discounted_cumulative_gain,
     get_most_liked_indices,
+    get_relevant,
 )

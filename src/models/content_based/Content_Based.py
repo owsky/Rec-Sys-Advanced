@@ -1,36 +1,64 @@
+import math
 from typing_extensions import Self
 import numpy as np
 from numpy.typing import NDArray
+from sklearn.metrics import ndcg_score
 from data import Data
 from sklearn.neighbors import NearestNeighbors
 from sklearn.feature_extraction.text import TfidfVectorizer
-from scipy.sparse import spmatrix
+from scipy.sparse import csr_array, spmatrix, coo_array
 from utils import lists_str_join
-from models.non_personalized import Highest_Rated
-from utils.metrics import get_most_liked_indices
-from utils.z_score_norm import z_score_norm
+from utils import recall_at_k, get_relevant, precision_at_k, get_most_liked_indices
 from joblib import Parallel, delayed
 from tqdm import tqdm
-from ..Recommender_System import Recommender_System
-from scipy.sparse import csr_array
+from models.non_personalized import Highest_Rated
 
 
-class Content_Based(Recommender_System):
-    ratings_train: csr_array
+def z_score_norm(ratings: coo_array):
+    # Initialize an empty COO matrix for normalized values
+    normalized_data = []
+    normalized_rows = []
+    normalized_cols = []
 
+    # Iterate through each row
+    for i in range(ratings.shape[0]):
+        # Extract non-zero elements in the row
+        row_elements = ratings.data[ratings.row == i]
+        if row_elements.any():
+            # Compute mean and standard deviation excluding zero values
+            mean_value = np.mean(row_elements)
+            std_value = np.std(row_elements)
+
+            # Normalize non-zero elements using z-score
+            if std_value == 0:
+                std_value = 1
+            normalized_values = (row_elements - mean_value) / std_value
+
+            # Append normalized values to the result COO matrix
+            normalized_data.extend(normalized_values)
+            normalized_rows.extend([i] * len(normalized_values))
+            normalized_cols.extend(ratings.col[ratings.row == i])
+
+    normalized_coo_matrix = coo_array(
+        (normalized_data, (normalized_rows, normalized_cols)), shape=ratings.shape
+    )
+
+    return normalized_coo_matrix
+
+
+class Content_Based:
     def __init__(self, data: Data):
-        super().__init__("Content Based")
         self.data = data
-        self.ratings_train = z_score_norm(data.train).tocsr()
+        self.train = z_score_norm(data.train).tocsr()
+        # self.train = data.train.tocsr()
         self.movies = self.data.movies
-        self.np = Highest_Rated()
+        self.np = Highest_Rated().fit(data)
         self.np.fit(data)
 
     def fit(self) -> Self:
         """
         Fit the Tfid and NearestNeighbors models, then create the user profiles
         """
-        print("\nFitting the Content Based model...")
 
         self.vec_model = TfidfVectorizer(
             vocabulary=list(
@@ -57,7 +85,7 @@ class Content_Based(Recommender_System):
         self.knn_model = NearestNeighbors(metric="cosine").fit(m)
 
         print("Creating the user profiles")
-        n_users = self.ratings_train.shape[0]
+        n_users = self.train.shape[0]
         self.cold_users = []
         self.user_profiles = []
 
@@ -97,8 +125,8 @@ class Content_Based(Recommender_System):
         Create user profile by averaging the k most liked movies' genres and tags
         If a user has no liked movies return the index and let the caller deal with it
         """
-        user_ratings: NDArray[np.float64] = self.ratings_train.getrow(user_index).data  # type: ignore
-        user_bias: float = 0  # self.data.average_user_rating[user_index]
+        user_ratings: NDArray[np.float64] = self.train.getrow(user_index).data  # type: ignore
+        user_bias: float = self.data.average_user_rating[user_index]
         k = int(0.4 * len(user_ratings)) + 1
         user_likes = get_most_liked_indices(user_ratings, user_bias, k)
 
@@ -116,15 +144,17 @@ class Content_Based(Recommender_System):
 
         return weighted_average
 
-    def top_n(self, user_index: int, n=10) -> list[int] | NDArray[np.int64]:
+    def get_top_n_recommendations(self, user_index: int, n=10) -> list[int]:
         """
         Compute the top n recommendations for given user index
         """
+        # print(user_index)
         if user_index in self.cold_users:
-            return self.np.top_n(user_index, n)
+            # user_id = self.data.user_index_to_id[user_index]
+            return self.np.top_n(user_index, n).tolist()
 
         user_profile = self.user_profiles[user_index]
-        already_watched_indices = self.ratings_train.getrow(user_index).nonzero()[0]
+        already_watched_indices = self.train.getrow(user_index).nonzero()[0]
 
         neighbors = self.knn_model.kneighbors(
             user_profile, n + len(already_watched_indices), False
@@ -135,15 +165,68 @@ class Content_Based(Recommender_System):
             if neighbor not in already_watched_indices
         ]
 
-        return [self.data.item_id_to_index[x] for x in movie_ids[:n]]
+        return movie_ids[:n]
 
-    def predict(self):
-        raise RuntimeError(f"Model {self.__class__.__name__} cannot predict ratings")
+    def _average_reciprocal_hit_rank(
+        self, recommended_indices: list[int], relevant_items_indices: list[int]
+    ):
+        """
+        Compute the average reciprocal hit rank
+        """
+        hits = np.intersect1d(relevant_items_indices, recommended_indices)
+        ranks = [np.where(recommended_indices == hit)[0][0] + 1 for hit in hits]
+        if len(ranks) == 0:
+            return 0
+        return np.mean([1 / rank for rank in ranks])
 
-    def _predict_all(self):
-        raise RuntimeError(f"Model {self.__class__.__name__} cannot predict ratings")
+    def _ndcg(self, recommended_indices: list[int], relevant_items_indices: list[int]):
+        """
+        Compute the normalized discounted cumulative gain
+        """
+        binary_relevance = [
+            int(idx in relevant_items_indices) for idx in recommended_indices
+        ]
+        ideal_relevance = sorted(binary_relevance, reverse=True)
+        return ndcg_score(np.array([ideal_relevance]), np.array([binary_relevance]))
 
-    def crossvalidation_hyperparameters(self):
-        raise RuntimeError(
-            f"Model {self.__class__.__name__} has no hyperparameters to crossvalidate"
+    def accuracy_metrics(self, n=10):
+        n_users = self.train.shape[0]
+
+        precisions = []
+        recalls = []
+        f1_scores = []
+        arhrs = []
+        ndcgs = []
+        for user_index in range(n_users):
+            user_ratings = self.data.test.getrow(user_index)
+            relevant = get_relevant(
+                user_ratings, self.data.average_user_rating[user_index]
+            )
+            recommended = [
+                self.data.item_id_to_index[x]
+                for x in self.get_top_n_recommendations(user_index, n)
+            ]
+
+            if len(relevant) >= n and len(recommended) >= n:
+                precision = precision_at_k(relevant, recommended, n)
+                recall = recall_at_k(relevant, recommended, n)
+                arhr = self._average_reciprocal_hit_rank(recommended, relevant.tolist())
+                f1 = (
+                    2 * (precision * recall) / (precision + recall)
+                    if (precision + recall) > 0
+                    else 0
+                )
+                ndcg = self._ndcg(recommended, relevant.tolist())
+                precisions.append(precision)
+                recalls.append(recall)
+                arhrs.append(arhr)
+                f1_scores.append(f1)
+                ndcgs.append(ndcg)
+
+        return (
+            np.mean(precisions),
+            np.mean(recalls),
+            np.mean(f1_scores),
+            np.mean(arhrs),
+            np.mean(ndcgs),
         )
