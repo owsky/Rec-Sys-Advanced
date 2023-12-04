@@ -7,6 +7,7 @@ from tabulate import tabulate
 from cross_validation import grid_search
 from ..CF_Base import CF_Base
 from typing_extensions import Self
+from scipy.sparse import csr_array
 
 
 class MF_Base(CF_Base, ABC):
@@ -16,7 +17,8 @@ class MF_Base(CF_Base, ABC):
 
     train_set: coo_array | None = None
 
-    def __init__(self):
+    def __init__(self, model_name: str):
+        super().__init__(model_name)
         self.P: NDArray[np.float64] = np.array([])
         self.Q: NDArray[np.float64] = np.array([])
 
@@ -29,7 +31,21 @@ class MF_Base(CF_Base, ABC):
             raise RuntimeError("Model untrained, invoke fit before predicting")
         return np.dot(self.P[u, :], self.Q[i, :].T)
 
-    def _generic_cv_hyper(
+    def top_n(self, user_index: int, n=10):
+        if self.train_set is None:
+            raise RuntimeError("Model untrained, fit first")
+        ratings = csr_array(self.train_set.getrow(user_index)).toarray()[0]
+        unrated_indices = np.nonzero(ratings == 0)[0]
+        predictions = [
+            (item_index, self.predict(user_index, item_index))
+            for item_index in unrated_indices
+        ]
+        predictions = [
+            x[0] for x in sorted(predictions, key=lambda x: x[1], reverse=True)
+        ]
+        return predictions[:n]
+
+    def crossvalidation_hyperparameters(
         self,
         model_label: str,
         train_set: coo_array,

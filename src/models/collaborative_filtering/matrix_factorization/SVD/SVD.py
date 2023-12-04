@@ -2,6 +2,7 @@ from itertools import product
 import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import coo_array
+from data import Data
 from ..MF_Base import MF_Base
 from utils import RandomSingleton
 from typing_extensions import Self
@@ -13,11 +14,12 @@ class SVD(MF_Base):
     """
 
     def __init__(self, verbose=True):
+        super().__init__("Singular Value Decomposition")
         self.verbose = verbose
 
     def fit(
         self,
-        train_set: coo_array,
+        data: Data,
         n_factors: int = 10,
         epochs: int = 20,
         lr: float = 0.009,
@@ -28,14 +30,15 @@ class SVD(MF_Base):
     ) -> Self:
         if self.verbose:
             print("Fitting the Matrix Factorization model...")
-        num_users, num_items = train_set.shape
+        self.data = data
         self.lr = lr
         self.lr_decay_factor = lr_decay_factor
         self.max_grad_norm = max_grad_norm
         self.reg = reg
         self.epochs = epochs
         self.batch_size = batch_size
-        self.train_set = train_set
+        self.train_set = data.train
+        num_users, num_items = self.train_set.shape
 
         self.P = RandomSingleton.get_random_normal(
             loc=0, scale=0.1, size=(num_users, n_factors)
@@ -44,14 +47,16 @@ class SVD(MF_Base):
             loc=0, scale=0.1, size=(num_items, n_factors)
         )
 
-        data = list(zip(train_set.row, train_set.col, train_set.data))
+        iterable_data = list(
+            zip(self.train_set.row, self.train_set.col, self.train_set.data)
+        )
 
         for _ in range(self.epochs):
             self.lr *= self.lr_decay_factor
-            RandomSingleton.shuffle(data)
+            RandomSingleton.shuffle(iterable_data)
 
-            for i in range(0, len(data), self.batch_size):
-                batch = data[i : i + self.batch_size]
+            for i in range(0, len(iterable_data), self.batch_size):
+                batch = iterable_data[i : i + self.batch_size]
                 users = np.array([user for user, _, _ in batch])
                 items = np.array([item for _, item, _ in batch])
                 ratings = np.array([rating for _, _, rating in batch])
@@ -102,7 +107,7 @@ class SVD(MF_Base):
             batch_size_range,
             lr_decay_factor_range,
         )
-        return self._generic_cv_hyper("MF", train_set, test_set, prod)
+        return self.crossvalidation_hyperparameters("MF", train_set, test_set, prod)
 
 
 def cv_hyper_svd_helper(train_set: coo_array, test_set: coo_array):

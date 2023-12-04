@@ -1,14 +1,17 @@
 from abc import ABC, abstractmethod
-import math
-from typing import Callable
 from typing_extensions import Self
 from scipy.sparse import coo_array
 import numpy as np
 from numpy.typing import NDArray
 
+import data
+from ..Recommender_System import Recommender_System
+from data import Data
 
-class CF_Base(ABC):
+
+class CF_Base(Recommender_System, ABC):
     train_set: coo_array | NDArray[np.float64] | None = None
+    data: Data
 
     @abstractmethod
     def fit(self) -> Self:
@@ -29,10 +32,11 @@ class CF_Base(ABC):
             np.where(np.sum(self.train_set != 0, axis=0) < threshold)[0],
         )
 
-    def predict_all(self, test_set: coo_array):
+    def _predict_all(self):
         """
         Given a test set, compute the predictions for all the non-zero ratings
         """
+        test_set = self.data.test
         predictions: list[tuple[int, int, int, float | None]] = []
         for r, u, i in zip(test_set.data, test_set.row, test_set.col):
             predictions.append((u, i, r, self.predict(u, i)))
@@ -42,29 +46,3 @@ class CF_Base(ABC):
             if u in cold_users or i in cold_items:
                 predictions[j] = (u, i, y_true, None)
         return predictions
-
-    def _compute_prediction_errors(self, test_set: coo_array, loss_function: Callable):
-        """
-        Given a test set and a loss function, compute predictions and errors
-        """
-        predictions = self.predict_all(test_set)
-        errors = []
-        for prediction in predictions:
-            _, _, y_true, y_pred = prediction
-            if y_pred is not None:
-                errors.append(loss_function(y_true - y_pred))
-        return errors
-
-    def accuracy_mae(self, test_set: coo_array):
-        """
-        Compute the Mean Absolute Error of the trained model on a test set
-        """
-        errors = self._compute_prediction_errors(test_set, lambda x: abs(x))
-        return np.mean(errors)
-
-    def accuracy_rmse(self, test_set: coo_array):
-        """
-        Compute the Root Mean Squared Error of the trained model on a test set
-        """
-        errors = self._compute_prediction_errors(test_set, lambda x: x**2)
-        return math.sqrt(np.mean(errors))

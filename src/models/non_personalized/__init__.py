@@ -1,1 +1,2 @@
-from .Non_Personalized import Non_Personalized
+from .Highest_Rated import Highest_Rated
+from .Most_Popular import Most_Popular

@@ -1,1 +1,1 @@
-from .Neighborhood_Based import Neighborhood_Based
+from .Neighborhood_Base import Neighborhood_Base

@@ -1,4 +1,4 @@
-from .neighborhood_based import Neighborhood_Based
+from .neighborhood_based import Neighborhood_Base
 from .matrix_factorization import (
     SVD,
     cv_hyper_svd_helper,

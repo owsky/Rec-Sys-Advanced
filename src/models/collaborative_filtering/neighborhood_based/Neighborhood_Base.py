@@ -9,14 +9,10 @@ from ..CF_Base import CF_Base
 from typing_extensions import Self
 
 
-class Neighborhood_Based(CF_Base):
+class Neighborhood_Base(CF_Base):
     train_set: NDArray[np.float64] | None
-
-    def __init__(
-        self, kind: Literal["user", "item"], similarity: Literal["pearson", "cosine"]
-    ):
-        self.kind = kind
-        self.similarity = similarity
+    kind: Literal["user", "item"]
+    similarity: Literal["pearson", "cosine"]
 
     def fit(self, data: Data) -> Self:
         """
@@ -153,61 +149,21 @@ class Neighborhood_Based(CF_Base):
 
         return num / den
 
-    def predict(self, u: int, i: int, k=50, support=3):
-        # Item-based model
-        if self.kind == "item":
-            # Extract the top k neighbors of the item i which have been rated by user u
-            similarities = self.similarity_matrix[i, :]
-            top_neighbors = np.argsort(similarities)[::-1]
-            valid_neighbors = top_neighbors[
-                (self.ratings[u, top_neighbors] != 0)
-                & (self.similarity_matrix[i, top_neighbors] > 0)
-            ][:k]
+    def top_n(self, user_index: int, n=10):
+        if self.train_set is None:
+            raise RuntimeError("Model untrained, fit first")
+        ratings = self.train_set[user_index]
+        unrated_indices = np.nonzero(ratings == 0)[0]
+        predictions = [
+            (item_index, self.predict(user_index, item_index))
+            for item_index in unrated_indices
+        ]
+        predictions = [
+            x[0] for x in sorted(predictions, key=lambda x: x[1], reverse=True)
+        ]
+        return predictions[:n]
 
-            # Skip if support is not met, i.e., ^r(u,i)=0
-            if len(valid_neighbors) < support:
-                return None
-
-            # Biases required for rating normalization
-            bias_i = self.data.average_item_rating[i]
-            bias_j = self.data.average_item_rating[valid_neighbors]
-
-            # Compute the prediction as the adjusted ratings times the similarity score
-            # divided by the sum of the similarities
-            num = np.sum(
-                self.similarity_matrix[i, valid_neighbors]
-                * (self.ratings[u, valid_neighbors] - bias_j)
-            )
-            den = np.sum(self.similarity_matrix[i, valid_neighbors])
-
-            # Avoid division by zero
-            if den != 0:
-                return bias_i + float(num) / float(den)
-        else:
-            # Extract the top k neighbors of the user u who have rated the item i
-            similarities = self.similarity_matrix[u, :]
-            top_neighbors = np.argsort(similarities)[::-1]
-            valid_neighbors = top_neighbors[
-                (self.ratings[top_neighbors, i] != 0)
-                & (self.similarity_matrix[u, top_neighbors] > 0)
-            ][:k]
-
-            # Skip if support is not met, i.e., ^r(u,i)=0
-            if len(valid_neighbors) < support:
-                return None
-
-            # Biases required for rating normalization
-            bias_u = self.data.average_user_rating[u]
-            bias_v = self.data.average_user_rating[valid_neighbors]
-
-            # Compute the prediction as the adjusted ratings times the similarity score
-            # divided by the sum of the similarities
-            num = np.sum(
-                self.similarity_matrix[u, valid_neighbors]
-                * (self.ratings[valid_neighbors, i] - bias_v)
-            )
-            den = np.sum(self.similarity_matrix[u, valid_neighbors])
-
-            # Avoid division by zero
-            if den != 0:
-                return bias_u + float(num) / float(den)
+    def crossvalidation_hyperparameters(self):
+        raise RuntimeError(
+            f"Model {self.__class__.__name__} has no hyperparameters to crossvalidate"
+        )

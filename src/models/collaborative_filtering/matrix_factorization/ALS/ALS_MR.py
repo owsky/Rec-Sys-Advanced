@@ -15,6 +15,9 @@ class ALS_MR(MF_Base):
     Concrete class for Map Reduce Alternating Least Squares recommender system
     """
 
+    def __init__(self):
+        super().__init__("Alternating Least Squares")
+
     def fit(self, data: Data, n_factors=10, epochs=10, reg=0.01) -> Self:
         class DictAccumulator(AccumulatorParam):
             """
@@ -41,6 +44,7 @@ class ALS_MR(MF_Base):
 
         print("Fitting the Map Reduce Alternating Least Squares model...")
         self.train_set = data.train
+        self.data = data
 
         # Spark initialization
         spark = SparkContext(master="local", appName="Alternating Least Square")
@@ -135,7 +139,9 @@ class ALS_MR(MF_Base):
         Define the hyperparameter ranges required for crossvalidation, compute the product and invoke the super class' method
         """
         prod = product(n_factors_range, epochs_range, reg_range)
-        return self._generic_cv_hyper("ALS", train_set, test_set, prod, True)
+        return self.crossvalidation_hyperparameters(
+            "ALS", train_set, test_set, prod, True
+        )
 
 
 def cv_hyper_als_mr_helper(train_set: coo_array, test_set: coo_array):

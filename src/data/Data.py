@@ -1,5 +1,6 @@
-from typing import Literal
+from typing import Dict, Literal
 import numpy as np
+from numpy.typing import NDArray
 import pandas as pd
 from pandas import DataFrame
 from scipy.sparse import coo_array
@@ -51,7 +52,9 @@ class Data:
 
         return ratings_matrix
 
-    def _compute_average_ratings(self, coo_array: coo_array):
+    def _compute_average_ratings(
+        self, coo_array: coo_array
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         num_rows = coo_array.shape[0]
         num_cols = coo_array.shape[1]
 
@@ -106,8 +109,8 @@ class Data:
         self.train_ratings_df = train
         test = df.iloc[split_index:]
 
-        self.user_id_to_index = {}
-        self.user_index_to_id = {}
+        self.user_id_to_index: Dict[int, int] = {}
+        self.user_index_to_id: Dict[int, int] = {}
         self.new_user_index = 0
 
         self.train = self._create_ratings_matrix(train, shape)
@@ -180,7 +183,9 @@ class Data:
         self.max_num_genres = self.movies["genres"].apply(len).max()
         self.max_num_tags = self.movies["tags"].apply(len).max()
 
-    def get_movies_from_ids(self, movie_ids: list[int]) -> DataFrame:
+    def get_movies_from_ids(
+        self, movie_ids: list[int] | NDArray[np.int64]
+    ) -> DataFrame:
         """
         Given a movie id or an array of ids, retrieve the full movies information from
         the dataframe, sorted by the order of the provided ids

@@ -1,37 +1,25 @@
 from data import Data
-from models import SVD, ALS_MR, ALS, Neighborhood_Based, Ensemble
+from models import SVD, ALS_MR, ALS, Neighborhood_Base, Ensemble
+from models.collaborative_filtering.neighborhood_based.User_Based import User_Based
 
 
 def cf(data: Data):
     # Singular Value Decomposition
-    svd = SVD()
-    svd.fit(data.train)
-    print(
-        f"SVD MAE: {svd.accuracy_mae(data.test)}, SVD RMSE: {svd.accuracy_rmse(data.test)}"
-    )
+    svd = SVD().fit(data)
+    svd.pretty_print_accuracy_predictions()
 
     # Alternating Least Squares
-    als = ALS()
-    als.fit(train_set=data.train, n_factors=2, epochs=10, reg=0.8)
-    print(
-        f"ALS MAE:  {als.accuracy_mae(data.test)}, ALS RMSE:  {als.accuracy_rmse(data.test)}"
-    )
+    als = ALS().fit(data=data, n_factors=2, epochs=10, reg=0.8)
+    als.pretty_print_accuracy_predictions()
 
     # Map Reduce Alternating Least Squares using PySpark
-    als_mr = ALS_MR()
-    als_mr.fit(data, n_factors=2, epochs=10, reg=0.8)
-    print(
-        f"ALS_MR MAE:  {als_mr.accuracy_mae(data.test)}, ALS_MR RMSE:  {als_mr.accuracy_rmse(data.test)}"
-    )
+    als_mr = ALS_MR().fit(data, n_factors=2, epochs=10, reg=0.8)
+    als_mr.pretty_print_accuracy_predictions()
 
     # Nearest Neighbors
-    nn = Neighborhood_Based(kind="user", similarity="cosine").fit(data)
-    print(
-        f"User-based with Adjusted Cosine Similarity MAE: {nn.accuracy_mae(data.test)}, RMSE: {nn.accuracy_rmse(data.test)}"
-    )
+    nn = User_Based(kind="user", similarity="cosine").fit(data)
+    nn.pretty_print_accuracy_predictions()
 
     # Ensemble
-    ens = Ensemble(data=data, svd_model=svd, als_model=als, nn_model=nn)
-    print(
-        f"Ensemble MAE: {ens.accuracy_mae(data.test)}, Ensemble RMSE: {ens.accuracy_rmse(data.test)}"
-    )
+    ens = Ensemble(data=data, svd_model=svd, als_model=als, nn_model=nn).fit()
+    ens.pretty_print_accuracy_predictions()

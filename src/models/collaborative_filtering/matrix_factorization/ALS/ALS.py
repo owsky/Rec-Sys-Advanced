@@ -2,6 +2,7 @@ from itertools import product
 from typing import Literal
 import numpy as np
 from scipy.sparse import coo_array
+from data import Data
 from ..MF_Base import MF_Base
 from utils import RandomSingleton
 from typing_extensions import Self
@@ -12,11 +13,14 @@ class ALS(MF_Base):
     Concrete class for Alternating Least Squares recommender system
     """
 
-    def fit(self, train_set: coo_array, n_factors=10, epochs=10, reg=0.01) -> Self:
-        print("Fitting the sequential Alternating Least Squares model...")
-        self.train_set = train_set
+    def __init__(self):
+        super().__init__("Alternating Least Squares")
 
-        n_users, n_items = train_set.shape
+    def fit(self, data: Data, n_factors=10, epochs=10, reg=0.01) -> Self:
+        print("Fitting the sequential Alternating Least Squares model...")
+        self.data = data
+        self.train_set = data.train
+        n_users, n_items = data.train.shape
 
         self.P = RandomSingleton.get_random_normal(
             loc=0, scale=0.1, size=(n_users, n_factors)
@@ -82,7 +86,7 @@ class ALS(MF_Base):
         Define the hyperparameter ranges required for crossvalidation, compute the product and invoke the super class' method
         """
         prod = product(n_factors_range, epochs_range, reg_range)
-        return self._generic_cv_hyper("ALS", train_set, test_set, prod)
+        return self.crossvalidation_hyperparameters("ALS", train_set, test_set, prod)
 
 
 def cv_hyper_als_helper(train_set: coo_array, test_set: coo_array):
