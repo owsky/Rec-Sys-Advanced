@@ -6,6 +6,7 @@ from data import Data
 from ..MF_Base import MF_Base
 from utils import RandomSingleton
 from typing_extensions import Self
+from tqdm import tqdm
 
 
 class SVD(MF_Base):
@@ -13,9 +14,8 @@ class SVD(MF_Base):
     Matrix Factorization approach for Collaborative Filtering. Uses sparse arrays and minibatch gradient descent
     """
 
-    def __init__(self, verbose=True):
+    def __init__(self):
         super().__init__("Singular Value Decomposition")
-        self.verbose = verbose
 
     def fit(
         self,
@@ -28,8 +28,6 @@ class SVD(MF_Base):
         lr_decay_factor: float = 0.9,
         max_grad_norm: float | None = 1.0,
     ) -> Self:
-        if self.verbose:
-            print("Fitting the Matrix Factorization model...")
         self.data = data
         self.lr = lr
         self.lr_decay_factor = lr_decay_factor
@@ -37,8 +35,8 @@ class SVD(MF_Base):
         self.reg = reg
         self.epochs = epochs
         self.batch_size = batch_size
-        self.train_set = data.train
-        num_users, num_items = self.train_set.shape
+        self.ratings_train = data.train
+        num_users, num_items = self.ratings_train.shape
 
         self.P = RandomSingleton.get_random_normal(
             loc=0, scale=0.1, size=(num_users, n_factors)
@@ -48,10 +46,14 @@ class SVD(MF_Base):
         )
 
         iterable_data = list(
-            zip(self.train_set.row, self.train_set.col, self.train_set.data)
+            zip(self.ratings_train.row, self.ratings_train.col, self.ratings_train.data)
         )
 
-        for _ in range(self.epochs):
+        for _ in tqdm(
+            range(self.epochs),
+            leave=False,
+            desc="Fitting the Matrix Factorization model...",
+        ):
             self.lr *= self.lr_decay_factor
             RandomSingleton.shuffle(iterable_data)
 
@@ -112,7 +114,7 @@ class SVD(MF_Base):
 
 def cv_hyper_svd_helper(train_set: coo_array, test_set: coo_array):
     print("Grid Search Cross Validation for MF")
-    mf = SVD(verbose=False)
+    mf = SVD()
     n_factors_range = np.arange(2, 20, 2)
     epochs_range = np.arange(10, 50, 10)
     lr_range = np.arange(0.001, 0.1, 0.01)

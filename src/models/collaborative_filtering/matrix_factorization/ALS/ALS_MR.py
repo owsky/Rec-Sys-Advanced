@@ -3,7 +3,7 @@ from typing import Iterable, Literal
 from data import Data
 from ..MF_Base import MF_Base
 import numpy as np
-from pyspark import RDD, Accumulator, AccumulatorParam, SparkContext
+from pyspark import RDD, Accumulator, AccumulatorParam, SparkContext, SparkConf
 from utils import RandomSingleton
 from scipy.sparse import coo_array
 from numpy.typing import NDArray
@@ -43,18 +43,30 @@ class ALS_MR(MF_Base):
                 return currDict
 
         print("Fitting the Map Reduce Alternating Least Squares model...")
-        self.train_set = data.train
+        self.ratings_train = data.train
         self.data = data
 
         # Spark initialization
-        spark = SparkContext(master="local", appName="Alternating Least Square")
+        conf = (
+            SparkConf()
+            .setMaster("local")
+            .setAppName("Alternating Least Squares")
+            .set("spark.log.level", "ERROR")
+        )
+        spark = SparkContext(conf=conf)
         spark.setLogLevel("ERROR")
 
-        n_users, n_items = self.train_set.shape
+        n_users, n_items = self.ratings_train.shape
 
         # Create and cache the ratings RDD
         ratings_RDD: RDD[tuple[int, int, float]] = spark.parallelize(
-            list(zip(self.train_set.row, self.train_set.col, self.train_set.data))
+            list(
+                zip(
+                    self.ratings_train.row,
+                    self.ratings_train.col,
+                    self.ratings_train.data,
+                )
+            )
         ).cache()
 
         # Initialize the factors' dictionaries

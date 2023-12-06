@@ -9,7 +9,6 @@ class Highest_Rated(Non_Personalized_Base):
         super().__init__("Highest Rated")
 
     def fit(self, data: Data) -> Self:
-        print("\nFitting the highest rated non personalized model...")
         self.data = data
         self.ratings_train = data.train.tocsc()
         self.average_ratings = self.ratings_train.mean(axis=0)

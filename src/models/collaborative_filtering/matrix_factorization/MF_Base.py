@@ -15,7 +15,7 @@ class MF_Base(CF_Base, ABC):
     Base class for Collaborative Filtering recommender systems
     """
 
-    train_set: coo_array | None = None
+    ratings_train: coo_array | None = None
 
     def __init__(self, model_name: str):
         super().__init__(model_name)
@@ -29,19 +29,21 @@ class MF_Base(CF_Base, ABC):
     def predict(self, u: int, i: int) -> float:
         if self.P.size == 0 or self.Q.size == 0:
             raise RuntimeError("Model untrained, invoke fit before predicting")
-        return np.dot(self.P[u, :], self.Q[i, :].T)
+        prediction = np.dot(self.P[u, :], self.Q[i, :].T)
+        return np.clip(prediction, 1, 5)
 
     def top_n(self, user_index: int, n=10):
-        if self.train_set is None:
+        if self.ratings_train is None:
             raise RuntimeError("Model untrained, fit first")
-        ratings = csr_array(self.train_set.getrow(user_index)).toarray()[0]
+        ratings = csr_array(self.ratings_train.getrow(user_index)).toarray()[0]
         unrated_indices = np.nonzero(ratings == 0)[0]
         predictions = [
             (item_index, self.predict(user_index, item_index))
             for item_index in unrated_indices
         ]
         predictions = [
-            x[0] for x in sorted(predictions, key=lambda x: x[1], reverse=True)
+            self.data.item_index_to_id[x[0]]
+            for x in sorted(predictions, key=lambda x: x[1], reverse=True)
         ]
         return predictions[:n]
 

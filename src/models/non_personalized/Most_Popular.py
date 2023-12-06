@@ -9,7 +9,6 @@ class Most_Popular(Non_Personalized_Base):
         super().__init__("Most Popular")
 
     def fit(self, data: Data) -> Self:
-        print("\nFitting the most popular non personalized model...")
         self.data = data
         self.ratings_train = data.train.tocsc()
         pop = []

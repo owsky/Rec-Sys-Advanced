@@ -1,4 +1,5 @@
 from typing import Dict, Literal
+from matplotlib.pyplot import margins
 import numpy as np
 from numpy.typing import NDArray
 import pandas as pd
@@ -24,35 +25,6 @@ class Data:
         self._load_movies()
         self._load_ratings(ratings_test_size)
         print("Datasets loaded correctly")
-
-    def _create_ratings_matrix(self, ratings: DataFrame, shape: tuple[int, int]):
-        """
-        Given a ratings array and a shape, create a sparse array in COO format
-        """
-        data = []
-        row_indices = []
-        col_indices = []
-
-        for _, row in ratings.iterrows():
-            user_id, item_id, rating = row["userId"], row["movieId"], row["rating"]
-
-            if user_id in self.user_id_to_index:
-                user_index = self.user_id_to_index[user_id]
-            else:
-                user_index = self.new_user_index
-                self.user_id_to_index[user_id] = user_index
-                self.user_index_to_id[user_index] = user_id
-                self.new_user_index += 1
-
-            item_index = self.item_id_to_index[item_id]
-
-            data.append(rating)
-            row_indices.append(user_index)
-            col_indices.append(item_index)
-
-        ratings_matrix = coo_array((data, (row_indices, col_indices)), shape=shape)
-
-        return ratings_matrix
 
     def _compute_average_ratings(
         self, coo_array: coo_array
@@ -84,6 +56,63 @@ class Data:
 
         return row_averages, col_averages
 
+    def _create_ratings_matrix(
+        self, ratings: DataFrame, shape: tuple[int, int], test_size: float
+    ):
+        data_train = []
+        row_indices_train = []
+        col_indices_train = []
+        data_test = []
+        row_indices_test = []
+        col_indices_test = []
+        new_user_index = 0
+
+        self.user_id_to_index: Dict[int, int] = {}
+        self.user_index_to_id: Dict[int, int] = {}
+
+        for user_id in ratings["userId"].unique():
+            user_df = ratings[ratings["userId"] == user_id]
+
+            split_index = int((1 - test_size) * len(user_df))
+
+            user_train: DataFrame = user_df.iloc[:split_index]
+            for _, row in user_train.iterrows():
+                movie_id, r = row["movieId"], row["rating"]
+
+                if user_id in self.user_id_to_index:
+                    user_index = self.user_id_to_index[user_id]
+                else:
+                    user_index = new_user_index
+                    self.user_id_to_index[user_id] = user_index
+                    self.user_index_to_id[user_index] = user_id
+                    new_user_index += 1
+
+                item_index = self.item_id_to_index[movie_id]
+                data_train.append(r)
+                row_indices_train.append(user_index)
+                col_indices_train.append(item_index)
+
+            user_test: DataFrame = user_df.iloc[split_index:]
+            for _, row in user_test.iterrows():
+                movie_id, r = row["movieId"], row["rating"]
+
+                if user_id in self.user_id_to_index:
+                    user_index = self.user_id_to_index[user_id]
+                else:
+                    user_index = new_user_index
+                    self.user_id_to_index[user_id] = user_index
+                    self.user_index_to_id[user_index] = user_id
+                    new_user_index += 1
+
+                item_index = self.item_id_to_index[movie_id]
+                data_test.append(r)
+                row_indices_test.append(user_index)
+                col_indices_test.append(item_index)
+
+        return coo_array(
+            (data_train, (row_indices_train, col_indices_train)), shape=shape
+        ), coo_array((data_test, (row_indices_test, col_indices_test)), shape=shape)
+
     def _load_ratings(self, test_size: float) -> tuple[coo_array, coo_array]:
         """
         Load the ratings from file, optionally partition into train and test datasets by timestamp,
@@ -92,31 +121,18 @@ class Data:
         df = pd.read_csv(
             self.data_path + "ratings.csv",
             dtype={
-                "movie_id": "Int64",
-                "userId": "Int64",
+                "movie_id": int,
+                "userId": int,
                 "rating": float,
                 "timestamp": int,
             },
         )
         df["timestamp"] = pd.to_datetime(df["timestamp"], unit="s")
-
-        movie_ids_with_tags = self.movies["movieId"].values
-        df = df[df["movieId"].isin(movie_ids_with_tags)]
+        df.sort_values(by="timestamp", inplace=True)
 
         shape = (df["userId"].nunique(), self.how_many_unique_movie_ids)
 
-        df = df.sort_values(by="timestamp")
-        split_index = int(test_size * (1 - len(df)))
-        train = df.iloc[:split_index]
-        self.train_ratings_df = train
-        test = df.iloc[split_index:]
-
-        self.user_id_to_index: Dict[int, int] = {}
-        self.user_index_to_id: Dict[int, int] = {}
-        self.new_user_index = 0
-
-        self.train = self._create_ratings_matrix(train, shape)
-        self.test = self._create_ratings_matrix(test, shape)
+        self.train, self.test = self._create_ratings_matrix(df, shape, test_size)
 
         (
             self.average_user_rating,
@@ -224,5 +240,5 @@ class Data:
         user_bias = (
             0 if np.std(user_ratings[nz]) == 0 else self.average_user_rating[user_index]
         )
-        liked_indices = np.flatnonzero(user_ratings - user_bias > 0)
+        liked_indices = np.flatnonzero(user_ratings - user_bias >= 0)
         return sorted(liked_indices, key=lambda x: user_ratings[x], reverse=True)

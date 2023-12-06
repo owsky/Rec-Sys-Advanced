@@ -19,7 +19,7 @@ class ALS(MF_Base):
     def fit(self, data: Data, n_factors=10, epochs=10, reg=0.01) -> Self:
         print("Fitting the sequential Alternating Least Squares model...")
         self.data = data
-        self.train_set = data.train
+        self.ratings_train = data.train
         n_users, n_items = data.train.shape
 
         self.P = RandomSingleton.get_random_normal(
@@ -62,9 +62,13 @@ class ALS(MF_Base):
         """
         Return indices and actual values of either a user's or an item's observed ratings
         """
-        if self.train_set is None:
+        if self.ratings_train is None:
             raise RuntimeError("Model untrained")
-        row, col, data = (self.train_set.row, self.train_set.col, self.train_set.data)
+        row, col, data = (
+            self.ratings_train.row,
+            self.ratings_train.col,
+            self.ratings_train.data,
+        )
         if kind == "user":
             indices = np.where((row == index))[0]
             sliced_axis = col[indices]

@@ -3,14 +3,12 @@ from typing_extensions import Self
 from scipy.sparse import coo_array
 import numpy as np
 from numpy.typing import NDArray
-
-import data
 from ..Recommender_System import Recommender_System
 from data import Data
 
 
 class CF_Base(Recommender_System, ABC):
-    train_set: coo_array | NDArray[np.float64] | None = None
+    ratings_train: coo_array | NDArray[np.float64] | None = None
     data: Data
 
     @abstractmethod
@@ -25,11 +23,11 @@ class CF_Base(Recommender_System, ABC):
         """
         Return the indices of the users and items in the train set with less ratings than the threshold
         """
-        if self.train_set is None:
+        if self.ratings_train is None:
             raise RuntimeError("Model untrained, invoke fit before predicting")
         return (
-            np.where(np.sum(self.train_set != 0, axis=1) < threshold)[0],
-            np.where(np.sum(self.train_set != 0, axis=0) < threshold)[0],
+            np.where(np.sum(self.ratings_train != 0, axis=1) < threshold)[0],
+            np.where(np.sum(self.ratings_train != 0, axis=0) < threshold)[0],
         )
 
     def _predict_all(self):

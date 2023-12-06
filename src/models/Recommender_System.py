@@ -4,6 +4,7 @@ from typing import Callable
 import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import coo_array, csc_array, csr_array
+from tqdm import tqdm
 from data import Data
 from utils.metrics import (
     f1_score,
@@ -46,9 +47,11 @@ class Recommender_System(ABC):
         f1_scores = []
         arhrs = []
         ndcgs = []
-        for user_index in range(n_users):
-            user_id = self.data.user_index_to_id[user_index]
-            relevant = self.data.get_liked_movies_indices(user_id, "test")
+        for user_index in tqdm(
+            range(n_users), leave=False, desc="Computing accuracy for top N..."
+        ):
+            test_ratings = csr_array(self.data.test.getrow(user_index)).toarray()[0]
+            relevant = np.flatnonzero(test_ratings >= 3)
             recommended = [
                 self.data.item_id_to_index[x] for x in self.top_n(user_index, n)
             ]
@@ -105,7 +108,7 @@ class Recommender_System(ABC):
 
     def pretty_print_accuracy_top_n(self, n=30):
         precision, recall, f1, arhr, ndcg = self.accuracy_top_n(n)
-        print(f"\nModel {self.model_name} top N accuracy:")
+        print(f"\n{self.model_name} model top N accuracy:")
         print(
             f"Precision@k: {precision:.3f}, Recall@k: {recall:.3f}, ",
             f"F1: {f1:.3f}, Average Reciprocal Hit Rank: {arhr:.3f}, ",

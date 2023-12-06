@@ -1,9 +1,9 @@
 from data import Data
-from models import Content_Based
+from models import Hybrid
 
 
-def cb(data: Data):
-    model = Content_Based().fit(data)
+def hb(data: Data):
+    model = Hybrid().fit(data)
     model.pretty_print_accuracy_top_n()
 
     # user_id = 1

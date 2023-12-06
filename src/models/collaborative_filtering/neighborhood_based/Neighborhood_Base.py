@@ -10,7 +10,7 @@ from typing_extensions import Self
 
 
 class Neighborhood_Base(CF_Base):
-    train_set: NDArray[np.float64] | None
+    ratings_train: NDArray[np.float64] | None
     kind: Literal["user", "item"]
     similarity: Literal["pearson", "cosine"]
 
@@ -25,7 +25,7 @@ class Neighborhood_Base(CF_Base):
         )
         self.data = data
         self.ratings = data.train.todense().astype(np.float64)
-        self.train_set = self.ratings
+        self.ratings_train = self.ratings
 
         if self.kind == "user":
             dim = data.train.shape[0]
@@ -45,6 +45,7 @@ class Neighborhood_Base(CF_Base):
                 + self.kind
                 + "-based similarities using "
                 + self.similarity,
+                leave=False,
             )
         )
 
@@ -150,16 +151,18 @@ class Neighborhood_Base(CF_Base):
         return num / den
 
     def top_n(self, user_index: int, n=10):
-        if self.train_set is None:
+        if self.ratings_train is None:
             raise RuntimeError("Model untrained, fit first")
-        ratings = self.train_set[user_index]
+        ratings = self.ratings_train[user_index]
         unrated_indices = np.nonzero(ratings == 0)[0]
         predictions = [
             (item_index, self.predict(user_index, item_index))
             for item_index in unrated_indices
         ]
+        predictions = [x for x in predictions if x[1] is not None]
         predictions = [
-            x[0] for x in sorted(predictions, key=lambda x: x[1], reverse=True)
+            self.data.item_index_to_id[x[0]]
+            for x in sorted(predictions, key=lambda x: x[1], reverse=True)
         ]
         return predictions[:n]
 

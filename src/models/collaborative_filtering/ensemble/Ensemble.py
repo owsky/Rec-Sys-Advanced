@@ -21,11 +21,11 @@ class Ensemble(CF_Base):
         self.nn_model = nn_model
 
     def fit(self) -> Self:
-        if self.svd_model.train_set is None:
+        if self.svd_model.ratings_train is None:
             self.svd_model.fit(self.data)
-        if self.als_model.train_set is None:
+        if self.als_model.ratings_train is None:
             self.als_model.fit(self.data)
-        if self.nn_model.train_set is None:
+        if self.nn_model.ratings_train is None:
             self.nn_model.fit(self.data)
         return self
 
@@ -39,7 +39,7 @@ class Ensemble(CF_Base):
         return float(np.mean(predictions))
 
     def top_n(self, user_index: int, n: int) -> list[int] | NDArray[int64]:
-        return super().top_n(user_index, n)
+        raise RuntimeError("Not implemented")
 
     def crossvalidation_hyperparameters(self):
         raise RuntimeError(

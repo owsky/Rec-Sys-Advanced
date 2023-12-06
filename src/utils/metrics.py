@@ -24,7 +24,7 @@ def recall_at_k(
 def f1_score(precision: float, recall: float):
     return (
         2 * (precision * recall) / (precision + recall)
-        if (precision + recall) > 0
+        if (precision + recall) != 0
         else 0
     )
 
