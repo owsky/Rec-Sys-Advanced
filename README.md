@@ -14,7 +14,9 @@
   - ✅ Neighborhood Based
     - ✅ User-based
     - ✅ Item-based
-- ⏹️ Hybrid
+- ✅ Hybrid
+- ⏹️ Try Word2Vec
+- ⏹️ Implement RandomSearchCV
 
 New user:
 611,1,5.0,964982703

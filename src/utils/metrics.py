@@ -1,6 +1,29 @@
+from re import L
 import numpy as np
 from numpy.typing import NDArray
 from sklearn.metrics import ndcg_score
+
+
+def precision(
+    relevant_items: list[int] | NDArray[np.int64],
+    recommended_items: list[int] | NDArray[np.int64],
+):
+    rel_set = set(relevant_items)
+    rec_set = set(recommended_items)
+    tp = len(rel_set.intersection(rec_set))
+    fp = len(rec_set.difference(rel_set))
+    return tp / (fp + tp) if fp + tp != 0 else 0
+
+
+def recall(
+    relevant_items: list[int] | NDArray[np.int64],
+    recommended_items: list[int] | NDArray[np.int64],
+):
+    rel_set = set(relevant_items)
+    rec_set = set(recommended_items)
+    tp = len(rel_set.intersection(rec_set))
+    fn = len(rel_set.difference(rec_set))
+    return tp / (fn + tp) if fn + tp != 0 else 0
 
 
 def precision_at_k(

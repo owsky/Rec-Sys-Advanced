@@ -7,12 +7,15 @@ from scipy.sparse import coo_array, csc_array, csr_array
 from tqdm import tqdm
 from data import Data
 from utils.metrics import (
+    precision,
+    recall,
     f1_score,
     precision_at_k,
     recall_at_k,
     average_reciprocal_hit_rank,
     normalized_discounted_cumulative_gain,
 )
+from tabulate import tabulate
 
 
 class Recommender_System(ABC):
@@ -34,7 +37,7 @@ class Recommender_System(ABC):
     def top_n(self, user_index: int, n: int) -> list[int] | NDArray[np.int64]:
         pass
 
-    def accuracy_top_n(self, n=30) -> tuple[float, float, float, float, float]:
+    def accuracy_top_n(self, n=30):
         """
         Compute all accuracy metrics using the test set
         """
@@ -43,8 +46,11 @@ class Recommender_System(ABC):
         n_users = self.ratings_train.shape[0]
 
         precisions = []
+        precisions_at_k = []
         recalls = []
+        recalls_at_k = []
         f1_scores = []
+        f1_at_k_scores = []
         arhrs = []
         ndcgs = []
         for user_index in tqdm(
@@ -57,21 +63,30 @@ class Recommender_System(ABC):
             ]
 
             if len(relevant) >= 1 and len(recommended) >= 1:
-                precision = precision_at_k(relevant, recommended, n)
-                recall = recall_at_k(relevant, recommended, n)
+                prec = precision(relevant, recommended)
+                prec_at_k = precision_at_k(relevant, recommended, n)
+                rec = recall(relevant, recommended)
+                rec_at_k = recall_at_k(relevant, recommended, n)
                 arhr = average_reciprocal_hit_rank(relevant, recommended)
-                f1 = f1_score(precision, recall)
+                f1 = f1_score(prec, rec)
+                f1_at_k = f1_score(prec_at_k, rec_at_k)
                 ndcg = normalized_discounted_cumulative_gain(relevant, recommended)
-                precisions.append(precision)
-                recalls.append(recall)
+                precisions.append(prec)
+                precisions_at_k.append(prec_at_k)
+                recalls.append(rec)
+                recalls_at_k.append(rec_at_k)
                 arhrs.append(arhr)
                 f1_scores.append(f1)
+                f1_at_k_scores.append(f1_at_k)
                 ndcgs.append(ndcg)
 
         return (
             float(np.mean(precisions)),
+            float(np.mean(precisions_at_k)),
             float(np.mean(recalls)),
+            float(np.mean(recalls_at_k)),
             float(np.mean(f1_scores)),
+            float(np.mean(f1_at_k_scores)),
             float(np.mean(arhrs)),
             float(np.mean(ndcgs)),
         )
@@ -107,12 +122,27 @@ class Recommender_System(ABC):
         return math.sqrt(np.mean(errors))
 
     def pretty_print_accuracy_top_n(self, n=30):
-        precision, recall, f1, arhr, ndcg = self.accuracy_top_n(n)
         print(f"\n{self.model_name} model top N accuracy:")
+        table = list(self.accuracy_top_n(n))
+        headers = [
+            "Precision",
+            "Precision@k",
+            "Recall",
+            "Recall@k",
+            "F1",
+            "F1@k",
+            "Average Reciprocal Hit Rank",
+            "Normalized Discounted Cumulative Gain",
+        ]
         print(
-            f"Precision@k: {precision:.3f}, Recall@k: {recall:.3f}, ",
-            f"F1: {f1:.3f}, Average Reciprocal Hit Rank: {arhr:.3f}, ",
-            f"Normalized Discounted Cumulative Gain: {ndcg:.3f}\n",
+            tabulate(
+                [table],
+                headers=headers,
+                tablefmt="grid",
+                floatfmt=".4f",
+                numalign="center",
+                stralign="center",
+            )
         )
 
     def pretty_print_accuracy_predictions(self):

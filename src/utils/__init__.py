@@ -10,4 +10,6 @@ from .metrics import (
     average_reciprocal_hit_rank,
     normalized_discounted_cumulative_gain,
     f1_score,
+    precision,
+    recall,
 )
