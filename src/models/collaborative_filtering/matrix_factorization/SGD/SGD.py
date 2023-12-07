@@ -9,13 +9,13 @@ from typing_extensions import Self
 from tqdm import tqdm
 
 
-class SVD(MF_Base):
+class SGD(MF_Base):
     """
     Matrix Factorization approach for Collaborative Filtering. Uses sparse arrays and minibatch gradient descent
     """
 
     def __init__(self):
-        super().__init__("Singular Value Decomposition")
+        super().__init__("Stochastic Gradient Descent")
 
     def fit(
         self,
@@ -26,12 +26,10 @@ class SVD(MF_Base):
         reg: float = 0.002,
         batch_size: int = 8,
         lr_decay_factor: float = 0.9,
-        max_grad_norm: float | None = 1.0,
     ) -> Self:
         self.data = data
         self.lr = lr
         self.lr_decay_factor = lr_decay_factor
-        self.max_grad_norm = max_grad_norm
         self.reg = reg
         self.epochs = epochs
         self.batch_size = batch_size
@@ -52,7 +50,7 @@ class SVD(MF_Base):
         for _ in tqdm(
             range(self.epochs),
             leave=False,
-            desc="Fitting the Matrix Factorization model...",
+            desc="Fitting the Stochastic Gradient Descent model...",
         ):
             self.lr *= self.lr_decay_factor
             RandomSingleton.shuffle(iterable_data)
@@ -69,23 +67,9 @@ class SVD(MF_Base):
                 grad_P = 2 * lr * (errors * self.Q[items, :] - reg * self.P[users, :])
                 grad_Q = 2 * lr * (errors * self.P[users, :] - reg * self.Q[items, :])
 
-                self._clip_gradients(grad_P, max_grad_norm)
-                self._clip_gradients(grad_Q, max_grad_norm)
-
                 self.P[users, :] += grad_P
                 self.Q[items, :] += grad_Q
         return self
-
-    def _clip_gradients(
-        self, gradient: NDArray[np.float64], max_grad_norm: float | None
-    ):
-        """
-        Avoid overflows in case the gradients diverge during training
-        """
-        if max_grad_norm is not None:
-            norm = float(np.linalg.norm(gradient))
-            if norm > max_grad_norm:
-                gradient *= max_grad_norm / norm
 
     def cross_validate_hyperparameters(
         self,
@@ -113,8 +97,8 @@ class SVD(MF_Base):
 
 
 def cv_hyper_svd_helper(train_set: coo_array, test_set: coo_array):
-    print("Grid Search Cross Validation for MF")
-    mf = SVD()
+    print("Grid Search Cross Validation for Stochastic Gradient Descent")
+    mf = SGD()
     n_factors_range = np.arange(2, 20, 2)
     epochs_range = np.arange(10, 50, 10)
     lr_range = np.arange(0.001, 0.1, 0.01)

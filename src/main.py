@@ -11,8 +11,8 @@ RandomSingleton.initialize(seed=42)
 
 def main():
     data = Data(data_path="dataset/old/preprocessed/", ratings_test_size=0.3)
-    # cf(data)
-    non_pers(data)
+    cf(data)
+    # non_pers(data)
     # cb(data)
     # hb(data)
 

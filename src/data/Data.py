@@ -230,15 +230,21 @@ class Data:
         return csr_array(arr.getrow(user_index)).toarray()[0]
 
     def get_liked_movies_indices(
-        self, user_id: int, dataset: Literal["train", "test"]
+        self, user_id: int, biased: bool, dataset: Literal["train", "test"]
     ) -> list[int]:
         user_ratings = self.get_user_ratings(user_id, dataset)
         nz = user_ratings.nonzero()
         if len(user_ratings[nz]) == 0:
             return []
         user_index = self.user_id_to_index[user_id]
-        user_bias = (
-            0 if np.std(user_ratings[nz]) == 0 else self.average_user_rating[user_index]
-        )
-        liked_indices = np.flatnonzero(user_ratings - user_bias >= 0)
+        if biased:
+            user_bias = (
+                0
+                if np.std(user_ratings[nz]) == 0
+                else self.average_user_rating[user_index]
+            )
+            mask = user_ratings - user_bias >= 0
+        else:
+            mask = user_ratings >= 3
+        liked_indices = np.flatnonzero(mask)
         return sorted(liked_indices, key=lambda x: user_ratings[x], reverse=True)

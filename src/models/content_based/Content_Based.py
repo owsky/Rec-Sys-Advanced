@@ -99,7 +99,7 @@ class Content_Based(Recommender_System):
         user_ratings = self.data.get_user_ratings(user_id, "train")
 
         k = int(0.4 * len(user_ratings)) + 1
-        user_likes = self.data.get_liked_movies_indices(user_id, "train")[:k]
+        user_likes = self.data.get_liked_movies_indices(user_id, True, "train")[:k]
 
         # Collect movie vectors and corresponding weights based on ratings
         movie_vectors = np.array(

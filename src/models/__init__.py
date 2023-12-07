@@ -1,5 +1,5 @@
 from .collaborative_filtering import (
-    SVD,
+    SGD,
     ALS,
     ALS_MR,
     cv_hyper_als_helper,

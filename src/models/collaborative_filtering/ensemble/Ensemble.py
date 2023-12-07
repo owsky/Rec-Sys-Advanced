@@ -2,7 +2,7 @@ from typing_extensions import Self
 from numpy import int64
 from numpy.typing import NDArray
 from data import Data
-from ..matrix_factorization import ALS, SVD
+from ..matrix_factorization import ALS, SGD
 from ..neighborhood_based import Neighborhood_Base
 import numpy as np
 from ..CF_Base import CF_Base
@@ -10,7 +10,7 @@ from ..CF_Base import CF_Base
 
 class Ensemble(CF_Base):
     def __init__(
-        self, data: Data, svd_model: SVD, als_model: ALS, nn_model: Neighborhood_Base
+        self, data: Data, svd_model: SGD, als_model: ALS, nn_model: Neighborhood_Base
     ):
         super().__init__("Ensemble")
         self.data = data

@@ -1,13 +1,13 @@
 import numpy as np
 from data import Data
-from models import SVD, ALS_MR, ALS, User_Based, Ensemble
+from models import SGD, ALS_MR, ALS, User_Based, Ensemble
 
 
 def cf(data: Data):
-    # Singular Value Decomposition
-    svd = SVD().fit(data)
-    # svd.pretty_print_accuracy_predictions()
-    svd.pretty_print_accuracy_top_n()
+    # Stochastic Gradient Descent
+    sgd = SGD().fit(data)
+    sgd.pretty_print_accuracy_predictions()
+    # sgd.pretty_print_accuracy_top_n()
 
     # # Alternating Least Squares
     # als = ALS().fit(data=data, n_factors=2, epochs=10, reg=0.8)

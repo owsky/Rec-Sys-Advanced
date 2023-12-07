@@ -97,7 +97,9 @@ class Hybrid(Recommender_System):
 
         return self
 
-    def _create_user_profile(self, user_index: int) -> int | NDArray[np.float64]:
+    def _create_user_profile(
+        self, user_index: int, fav_perc=0.3, biased=True
+    ) -> int | NDArray[np.float64]:
         """
         Create user profile by averaging the k most liked movies' genres and tags
         If a user has no liked movies return the index and let the caller deal with it
@@ -105,8 +107,8 @@ class Hybrid(Recommender_System):
         user_id = self.data.user_index_to_id[user_index]
         user_ratings = self.data.get_user_ratings(user_id, "train")
 
-        k = int(0.1 * len(user_ratings)) + 1
-        user_likes = self.data.get_liked_movies_indices(user_id, "train")[:k]
+        k = int(fav_perc * len(user_ratings)) + 1
+        user_likes = self.data.get_liked_movies_indices(user_id, biased, "train")[:k]
 
         # Collect movie vectors and corresponding weights based on ratings
         movie_vectors = np.array([self.movie_vectors[index] for index in user_likes])
