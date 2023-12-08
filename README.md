@@ -14,8 +14,9 @@
   - ✅ Neighborhood Based
     - ✅ User-based
     - ✅ Item-based
-- ✅ Hybrid
-- ⏹️ Try Word2Vec
+- ⏹️ Hybrid
+  - ⏹️ Give more weight to more recent ratings
+- ✅ Try Word2Vec
 - ⏹️ Implement RandomSearchCV
 
 New user:
