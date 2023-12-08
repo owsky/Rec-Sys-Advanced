@@ -6,11 +6,20 @@ import os
 script_directory = os.path.dirname(os.path.abspath(__file__))
 make_path = lambda path: os.path.join(script_directory, path)
 
-ratings = pd.read_csv(make_path("ratings.csv"))
-tags = pd.read_csv(make_path("tags.csv"))
-movies = pd.read_csv(make_path("movies.csv"))
-genome_scores = pd.read_csv(make_path("genome-scores.csv"))
-genome_tags = pd.read_csv(make_path("genome-tags.csv"))
+# Loading full datasets
+ratings_full = pd.read_csv(make_path("ratings_full.csv"))
+tags_full = pd.read_csv(make_path("tags_full.csv"))
+movies_full = pd.read_csv(make_path("movies_full.csv"))
+genome_scores = pd.read_csv(make_path("genome-scores_full.csv"))
+genome_tags = pd.read_csv(make_path("genome-tags_full.csv"))
+
+# Loading small datasets
+ratings_small = pd.read_csv(make_path("ratings_small.csv"))
+tags_small = pd.read_csv(make_path("tags_small.csv"))
+movies_small = pd.read_csv(make_path("movies_small.csv"))
+
+print(ratings_small["userId"].nunique())
+print(ratings_full["userId"].nunique())
 
 
 # Function to remove 'IMAX' from genres column
@@ -20,10 +29,13 @@ def remove_imax(genre_string):
     return "|".join(genres_list)
 
 
-movies["genres"] = movies["genres"].apply(remove_imax)
+# Apply the function to the 'genres' column
+movies_small["genres"] = movies_small["genres"].apply(remove_imax)
+
+# Filter full tags
 genome_tags["tag"] = genome_tags["tag"].str.lower()
 
-# Removing unimportant tags
+
 for index, row in genome_tags.iterrows():
     tag = row.tag  # .split()  ## splitting words for spell check
 
@@ -59,57 +71,40 @@ for index, row in genome_tags.iterrows():
         # Saves the corrected tag
         genome_tags.loc[index, "tag"] = correct_tag  # type: ignore
         pass
+
 # Dropping all tags with words that are lower than two letters or less
 genome_tags = genome_tags.dropna()
 
-tags_scores_df = pd.merge(genome_tags, genome_scores, on="tagId", how="inner")
-merged_df = movies.merge(tags_scores_df, on="movieId").sort_values(
-    by="relevance", ascending=False
-)
 
-merged_df = merged_df[merged_df["relevance"] >= 0.55].groupby("movieId").head(50)
+full_genome = pd.merge(genome_tags, genome_scores, on="tagId", how="inner")
 
-tag_counts = (
-    merged_df.groupby("movieId")["tag"]
-    .count()
-    .reset_index()
-    .sort_values(by="tag", ascending=True)
-)
+full_genome = full_genome[full_genome["movieId"].isin(tags_small["movieId"])]
 
-filtered_tag_counts = tag_counts[tag_counts["tag"] < 15]
-to_be_removed = filtered_tag_counts["movieId"].unique()
-merged_df = merged_df[~merged_df["movieId"].isin(to_be_removed)]
+merged_df = pd.merge(movies_small, full_genome, on="movieId")
 
-tags = merged_df[["tagId", "movieId", "tag"]].drop_duplicates()
+# Sort by 'relevance' in descending order
+merged_df = merged_df.sort_values(by="relevance", ascending=False)
+
+# Group by 'movieId' and take the top 50 rows for each group
+top_50_tags_per_movie = merged_df.groupby("movieId").head(50)
+tags = top_50_tags_per_movie[["tagId", "movieId", "tag"]].drop_duplicates()
 tags.to_csv(os.path.join(script_directory, "preprocessed", "tags.csv"), index=False)
 
-surviving_movie_ids = list(
-    set(merged_df["movieId"].unique()).intersection(set(ratings["movieId"].unique()))
-)
+surviving_movie_ids = merged_df["movieId"].unique()
 
-surviving_user_ids = ratings["userId"].unique()[:1000]
+movies_filtered = movies_small[movies_small["movieId"].isin(surviving_movie_ids)]
 
-ratings_filtered = ratings[
-    (ratings["movieId"].isin(surviving_movie_ids))
-    & (ratings["userId"].isin(surviving_user_ids))
-]
-
-
-movies_filtered = movies[movies["movieId"].isin(surviving_movie_ids)]
-
-ratings_filtered = ratings_filtered[ratings_filtered["rating"] % 1 == 0]
-ratings_filtered["rating"] = ratings_filtered["rating"].astype(int)
-
-ratings_count = ratings_filtered.groupby(by="userId")["rating"].count().reset_index()
-to_keep = ratings_count[ratings_count["rating"] >= 30]["userId"].unique()
-ratings_filtered = ratings_filtered[ratings_filtered["userId"].isin(to_keep)]
-
-ratings_filtered.to_csv(
-    os.path.join(script_directory, "preprocessed", "ratings.csv"), index=False
-)
-
-surviving_movie_ids = ratings_filtered["movieId"].unique()
-movies_filtered = movies[movies["movieId"].isin(surviving_movie_ids)]
 movies_filtered.to_csv(
     os.path.join(script_directory, "preprocessed", "movies.csv"), index=False
+)
+
+user_ids = ratings_small["userId"].unique()
+
+
+ratings_filtered = ratings_full[
+    (ratings_full["movieId"].isin(surviving_movie_ids))
+    & (ratings_full["userId"].isin(user_ids))
+]
+ratings_filtered.to_csv(
+    os.path.join(script_directory, "preprocessed", "ratings.csv"), index=False
 )

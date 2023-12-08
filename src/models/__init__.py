@@ -11,4 +11,4 @@ from .collaborative_filtering import (
 )
 from .non_personalized import Most_Popular, Highest_Rated
 from .content_based import Content_Based
-from .hybrid import Hybrid
+from .hybrid import Hybrid, Word2VecSession
