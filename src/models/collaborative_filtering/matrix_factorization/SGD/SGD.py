@@ -1,5 +1,6 @@
 from gc import disable
 import numpy as np
+from numpy.typing import NDArray
 from data import Data
 from ..MF_Base import MF_Base
 from utils import RandomSingleton
@@ -69,6 +70,14 @@ class SGD(MF_Base):
                 grad_P = 2 * lr * (errors * self.Q[items, :] - reg * self.P[users, :])
                 grad_Q = 2 * lr * (errors * self.P[users, :] - reg * self.Q[items, :])
 
+                self._clip_gradients(grad_P)
+                self._clip_gradients(grad_Q)
+
                 self.P[users, :] += grad_P
                 self.Q[items, :] += grad_Q
         return self
+
+    def _clip_gradients(self, gradient: NDArray[np.float64]):
+        norm = float(np.linalg.norm(gradient))
+        if norm > 1.0:
+            gradient /= norm
