@@ -16,7 +16,7 @@ class User_Based(Neighborhood_Base):
         similarities = self.similarity_matrix[u, :]
         top_neighbors = np.argsort(similarities)[::-1]
         valid_neighbors = top_neighbors[
-            (self.ratings[top_neighbors, i] != 0)
+            (self.data.interactions_train_numpy[top_neighbors, i] != 0)
             & (self.similarity_matrix[u, top_neighbors] > 0)
         ][:k]
 
@@ -32,7 +32,7 @@ class User_Based(Neighborhood_Base):
         # divided by the sum of the similarities
         num = np.sum(
             self.similarity_matrix[u, valid_neighbors]
-            * (self.ratings[valid_neighbors, i] - bias_v)
+            * (self.data.interactions_train_numpy[valid_neighbors, i] - bias_v)
         )
         den = np.sum(self.similarity_matrix[u, valid_neighbors])
 

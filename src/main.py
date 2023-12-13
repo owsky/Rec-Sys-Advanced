@@ -5,6 +5,7 @@ from cf import cf
 from cb import cb
 from hb import hb
 
+
 RandomSingleton.initialize(seed=42)
 
 

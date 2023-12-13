@@ -16,7 +16,7 @@ class Item_Based(Neighborhood_Base):
         similarities = self.similarity_matrix[i, :]
         top_neighbors = np.argsort(similarities)[::-1]
         valid_neighbors = top_neighbors[
-            (self.ratings[u, top_neighbors] != 0)
+            (self.data.interactions_train_numpy[u, top_neighbors] != 0)
             & (self.similarity_matrix[i, top_neighbors] > 0)
         ][:k]
 
@@ -32,7 +32,7 @@ class Item_Based(Neighborhood_Base):
         # divided by the sum of the similarities
         num = np.sum(
             self.similarity_matrix[i, valid_neighbors]
-            * (self.ratings[u, valid_neighbors] - bias_j)
+            * (self.data.interactions_train_numpy[u, valid_neighbors] - bias_j)
         )
         den = np.sum(self.similarity_matrix[i, valid_neighbors])
 

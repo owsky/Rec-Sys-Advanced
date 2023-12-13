@@ -28,13 +28,13 @@ class SGD(MF_Base):
         lr_decay_factor: float = 0.9,
     ) -> Self:
         self.data = data
+        self.is_fit = True
         self.lr = lr
         self.lr_decay_factor = lr_decay_factor
         self.reg = reg
         self.epochs = epochs
         self.batch_size = batch_size
-        self.ratings_train = data.train
-        num_users, num_items = self.ratings_train.shape
+        num_users, num_items = self.data.interactions_train.shape
 
         self.P = RandomSingleton.get_random_normal(
             loc=0, scale=0.1, size=(num_users, n_factors)
@@ -44,7 +44,11 @@ class SGD(MF_Base):
         )
 
         iterable_data = list(
-            zip(self.ratings_train.row, self.ratings_train.col, self.ratings_train.data)
+            zip(
+                self.data.interactions_train.row,
+                self.data.interactions_train.col,
+                self.data.interactions_train.data,
+            )
         )
 
         for _ in tqdm(

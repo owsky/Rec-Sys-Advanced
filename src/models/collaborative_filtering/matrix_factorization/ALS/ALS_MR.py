@@ -43,8 +43,8 @@ class ALS_MR(MF_Base):
                 return currDict
 
         print("Fitting the Map Reduce Alternating Least Squares model...")
-        self.ratings_train = data.train
         self.data = data
+        self.is_fit = True
 
         # Spark initialization
         conf = (
@@ -56,15 +56,15 @@ class ALS_MR(MF_Base):
         spark = SparkContext(conf=conf)
         spark.setLogLevel("ERROR")
 
-        n_users, n_items = self.ratings_train.shape
+        n_users, n_items = self.data.interactions_train.shape
 
         # Create and cache the ratings RDD
         ratings_RDD: RDD[tuple[int, int, float]] = spark.parallelize(
             list(
                 zip(
-                    self.ratings_train.row,
-                    self.ratings_train.col,
-                    self.ratings_train.data,
+                    self.data.interactions_train.row,
+                    self.data.interactions_train.col,
+                    self.data.interactions_train.data,
                 )
             )
         ).cache()

@@ -13,8 +13,6 @@ from models.non_personalized import Highest_Rated
 
 
 class Hybrid(Recommender_System):
-    ratings_train: csr_array
-
     def __init__(self):
         super().__init__("Hybrid")
 
@@ -46,43 +44,47 @@ class Hybrid(Recommender_System):
         self, items_features: NDArray[np.float64]
     ) -> NDArray[np.float64]:
         i_features = items_features
-        n_users, n_movies = self.ratings_train.shape
+        n_users, n_movies = self.data.interactions_train.shape
         combined_features = np.zeros((n_movies, len(i_features[0]) + n_users))
-        ratings = self.ratings_train.toarray()
 
         for sim_index in range(i_features.shape[0]):
             movie_index = self.data.item_id_to_index[
                 self.sim_index_to_movie_id[sim_index]
             ]
-            movie_ratings = ratings[:, movie_index]
+            movie_ratings = self.data.interactions_train_numpy[:, movie_index]
             movie_features = i_features[sim_index]
             comb = movie_features.tolist() + movie_ratings.tolist()
             combined_features[movie_index] = comb
 
         return np.array(combined_features)
 
-    def fit(self, data: Data) -> Self:
+    def fit(
+        self, data: Data, by_timestamp: bool, is_biased: bool, like_perc: float
+    ) -> Self:
         """
         Fit the Tfid and NearestNeighbors models, then create the user profiles
         """
         self.data = data
-        self.ratings_train = data.train.tocsr()
+        self.is_fit = True
+        self.is_biased = is_biased
         self.np = Highest_Rated().fit(data)
 
         item_features = self._extract_item_features()
         self.movie_vectors = self._combine_features(item_features)
         self.knn_model = NearestNeighbors(metric="cosine").fit(self.movie_vectors)
 
-        n_users = self.ratings_train.shape[0]
+        n_users = self.data.interactions_train.shape[0]
         self.cold_users = []
         self.user_profiles = []
 
         results = [
             result
             for result in Parallel(n_jobs=-1, backend="loky")(
-                delayed(self._create_user_profile)(user_index)
+                delayed(self._create_user_profile)(
+                    user_index, by_timestamp, is_biased, like_perc
+                )
                 for user_index in tqdm(
-                    range(n_users), desc="Fitting Hybrid model...", leave=False
+                    range(n_users), desc="Fitting the Hybrid model...", leave=False
                 )
             )
             if result is not None
@@ -98,21 +100,35 @@ class Hybrid(Recommender_System):
         return self
 
     def _create_user_profile(
-        self, user_index: int, fav_perc=0.3, biased=True
+        self, user_index: int, by_timestamp: bool, biased: bool, like_perc: float
     ) -> int | NDArray[np.float64]:
         """
         Create user profile by averaging the k most liked movies' genres and tags
         If a user has no liked movies return the index and let the caller deal with it
         """
         user_id = self.data.user_index_to_id[user_index]
-        user_ratings = self.data.get_user_ratings(user_id, "train")
+        if by_timestamp:
+            user_ratings = self.data.get_weighed_user_ratings(user_id)
 
-        k = int(fav_perc * len(user_ratings)) + 1
-        user_likes = self.data.get_liked_movies_indices(user_id, biased, "train")[:k]
+            k = int(like_perc * len(user_ratings)) + 1
+            user_likes = self.data.get_weighed_liked_movie_indices(user_id, biased)[:k]
+            movie_vectors = np.array(
+                [self.movie_vectors[index] for (index, _, _) in user_likes]
+            )
+            weights = [rating * weight for (_, rating, weight) in user_likes]
+        else:
+            user_ratings = self.data.get_user_ratings(user_id, "train")
 
-        # Collect movie vectors and corresponding weights based on ratings
-        movie_vectors = np.array([self.movie_vectors[index] for index in user_likes])
-        weights = user_ratings[user_likes]
+            k = int(like_perc * np.count_nonzero(user_ratings)) + 1
+            user_likes = self.data.get_liked_movies_indices(user_id, biased, "train")[
+                :k
+            ]
+
+            # Collect movie vectors and corresponding weights based on ratings
+            movie_vectors = np.array(
+                [self.movie_vectors[index] for index in user_likes]
+            )
+            weights = user_ratings[user_likes]
 
         try:
             weighted_average = np.average(movie_vectors, axis=0, weights=weights)
@@ -129,9 +145,11 @@ class Hybrid(Recommender_System):
             return self.np.top_n(user_index, n).tolist()
 
         user_profile = self.user_profiles[user_index].reshape(1, -1)
-        already_watched_indices = csr_array(self.data.train.getrow(user_index)).indices
+        already_watched_indices = csr_array(
+            self.data.interactions_train.getrow(user_index)
+        ).indices
 
-        n_movies = self.data.train.shape[1]
+        n_movies = self.data.interactions_train.shape[1]
         max_neighbors = min(n + len(already_watched_indices), n_movies)
 
         neighbors = self.knn_model.kneighbors(user_profile, max_neighbors, False)

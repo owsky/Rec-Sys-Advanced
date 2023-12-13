@@ -6,20 +6,18 @@ import numpy as np
 
 
 class Word2VecSession(Recommender_System):
-    ratings_train: NDArray[np.float64]
-
     def __init__(self):
         super().__init__("Word2Vec Session")
 
     def fit(self, data: Data):
         self.data = data
-        self.ratings_train = data.train.toarray()
+        self.is_fit = True
         self.model = self._train_word2vec_model()
         return self
 
     def _train_word2vec_model(self):
         corpus = []
-        for user_ratings in self.ratings_train:
+        for user_ratings in self.data.interactions_train_numpy:
             liked = [str(x) for x in np.flatnonzero(user_ratings >= 3)]
             corpus.append(liked)
 
@@ -66,7 +64,7 @@ class Word2VecSession(Recommender_System):
         return super().predict()
 
     def top_n(self, user_index: int, n: int) -> list[int] | NDArray[np.int64]:
-        user_ratings = self.ratings_train[user_index]
+        user_ratings = self.data.interactions_train_numpy[user_index]
         liked = [str(x) for x in np.flatnonzero(user_ratings >= 3)]
         v = self.aggregate_vectors(liked)
         if len(v) == 0:

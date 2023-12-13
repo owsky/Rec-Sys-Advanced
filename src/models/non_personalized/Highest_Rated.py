@@ -10,17 +10,16 @@ class Highest_Rated(Non_Personalized_Base):
 
     def fit(self, data: Data) -> Self:
         self.data = data
-        self.ratings_train = data.train.tocsc()
-        self.average_ratings = self.ratings_train.mean(axis=0)
+        self.is_fit = True
         return self
 
     def top_n(self, user_index: int, n: int):
         unrated_movies = self._get_unrated_movies(user_index)
-        # Find the indices of the top n highest average values for unrated items
-        top_n_indices = np.argpartition(self.average_ratings[unrated_movies], -n)[-n:]
-        top_n_indices = unrated_movies[top_n_indices]
 
-        # Return the top n highest rated unrated items
+        z = zip(unrated_movies, self.data.average_item_rating[unrated_movies])
+        z = sorted(z, key=lambda x: x[1], reverse=True)
+        top_n_indices = [x[0] for x in z][:n]
+
         movie_ids = np.array(
             [self.data.index_to_id(idx, "item") for idx in top_n_indices]
         )

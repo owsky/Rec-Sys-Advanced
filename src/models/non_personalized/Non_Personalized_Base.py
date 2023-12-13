@@ -12,10 +12,13 @@ class Non_Personalized_Base(Recommender_System, ABC):
     ratings_train: csc_array | None
 
     def _get_unrated_movies(self, user_index: int):
-        if self.ratings_train is None:
+        if not self.is_fit:
             raise RuntimeError("Model untrained, invoke fit before predicting")
-        user_row = csr_array(self.ratings_train.getrow(user_index)).toarray()
-        unrated_movies = np.where(user_row == 0)[1]
+
+        user_id = self.data.user_index_to_id[user_index]
+        user_row = self.data.get_user_ratings(user_id, "train")
+        unrated_movies = np.flatnonzero(user_row == 0)
+
         if len(unrated_movies) == 0:
             unrated_movies = np.array(range(user_row.shape[1]))
         return unrated_movies

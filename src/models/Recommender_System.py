@@ -3,7 +3,7 @@ import math
 from typing import Callable
 import numpy as np
 from numpy.typing import NDArray
-from scipy.sparse import coo_array, csc_array, csr_array
+from scipy.sparse import csr_array
 from tqdm import tqdm
 from data import Data
 from utils.metrics import (
@@ -19,8 +19,9 @@ from tabulate import tabulate
 
 
 class Recommender_System(ABC):
-    ratings_train: coo_array | csc_array | csr_array | NDArray[np.float64] | None
     data: Data
+    is_fit: bool
+    is_biased = False
 
     def __init__(self, model_name: str):
         self.model_name = model_name
@@ -41,9 +42,9 @@ class Recommender_System(ABC):
         """
         Compute all accuracy metrics using the test set
         """
-        if self.ratings_train is None:
+        if self.is_fit is None:
             raise RuntimeError("Untrain model, invoke fit before predicting")
-        n_users = self.ratings_train.shape[0]
+        n_users = self.data.interactions_train.shape[0]
 
         precisions = []
         precisions_at_k = []
@@ -53,32 +54,47 @@ class Recommender_System(ABC):
         f1_at_k_scores = []
         arhrs = []
         ndcgs = []
+
         for user_index in tqdm(
             range(n_users), leave=False, desc="Computing accuracy for top N..."
         ):
-            test_ratings = csr_array(self.data.test.getrow(user_index)).toarray()[0]
-            relevant = np.flatnonzero(test_ratings >= 3)
+            test_ratings = csr_array(
+                self.data.interactions_test.getrow(user_index)
+            ).toarray()[0]
+            if self.is_biased:
+                user_id = self.data.user_index_to_id[user_index]
+                user_bias = self.data.get_user_bias(user_id)
+                relevant = np.flatnonzero(test_ratings - user_bias >= 0)
+            else:
+                relevant = np.flatnonzero(test_ratings >= 3)
+            if len(relevant) < 2:
+                continue
+            elif len(relevant) < n:
+                n_adj = len(relevant)
+            else:
+                n_adj = n
             recommended = [
-                self.data.item_id_to_index[x] for x in self.top_n(user_index, n)
+                self.data.item_id_to_index[x] for x in self.top_n(user_index, n_adj)
             ]
+            if len(recommended) < n_adj:
+                continue
 
-            if len(relevant) >= 1 and len(recommended) >= 1:
-                prec = precision(relevant, recommended)
-                prec_at_k = precision_at_k(relevant, recommended, n)
-                rec = recall(relevant, recommended)
-                rec_at_k = recall_at_k(relevant, recommended, n)
-                arhr = average_reciprocal_hit_rank(relevant, recommended)
-                f1 = f1_score(prec, rec)
-                f1_at_k = f1_score(prec_at_k, rec_at_k)
-                ndcg = normalized_discounted_cumulative_gain(relevant, recommended)
-                precisions.append(prec)
-                precisions_at_k.append(prec_at_k)
-                recalls.append(rec)
-                recalls_at_k.append(rec_at_k)
-                arhrs.append(arhr)
-                f1_scores.append(f1)
-                f1_at_k_scores.append(f1_at_k)
-                ndcgs.append(ndcg)
+            prec = precision(relevant, recommended)
+            prec_at_k = precision_at_k(relevant, recommended, n_adj)
+            rec = recall(relevant, recommended)
+            rec_at_k = recall_at_k(relevant, recommended, n_adj)
+            arhr = average_reciprocal_hit_rank(relevant, recommended)
+            f1 = f1_score(prec, rec)
+            f1_at_k = f1_score(prec_at_k, rec_at_k)
+            ndcg = normalized_discounted_cumulative_gain(relevant, recommended)
+            precisions.append(prec)
+            precisions_at_k.append(prec_at_k)
+            recalls.append(rec)
+            recalls_at_k.append(rec_at_k)
+            arhrs.append(arhr)
+            f1_scores.append(f1)
+            f1_at_k_scores.append(f1_at_k)
+            ndcgs.append(ndcg)
 
         return (
             float(np.mean(precisions)),
@@ -99,6 +115,8 @@ class Recommender_System(ABC):
         """
         Given a test set and a loss function, compute predictions and errors
         """
+        if not self.is_fit:
+            raise RuntimeError("Untrain model, invoke fit before predicting")
         predictions = self._predict_all()
         errors = []
         for prediction in predictions:

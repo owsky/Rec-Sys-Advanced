@@ -1,12 +1,10 @@
 from typing import Dict, Literal
-from matplotlib.pyplot import margins
 import numpy as np
 from numpy.typing import NDArray
 import pandas as pd
 from pandas import DataFrame
 from scipy.sparse import coo_array, csr_array
-
-import data
+from utils import exponential_decay
 
 
 class Data:
@@ -70,12 +68,18 @@ class Data:
         self.user_id_to_index: Dict[int, int] = {}
         self.user_index_to_id: Dict[int, int] = {}
 
+        self.ratings_train_df = pd.DataFrame()
+        self.ratings_test_df = pd.DataFrame()
+
         for user_id in ratings["userId"].unique():
             user_df = ratings[ratings["userId"] == user_id]
 
             split_index = int((1 - test_size) * len(user_df))
 
             user_train: DataFrame = user_df.iloc[:split_index]
+            self.ratings_train_df = pd.concat(
+                [self.ratings_train_df, user_train], ignore_index=True
+            )
             for _, row in user_train.iterrows():
                 movie_id, r = row["movieId"], row["rating"]
 
@@ -93,6 +97,9 @@ class Data:
                 col_indices_train.append(item_index)
 
             user_test: DataFrame = user_df.iloc[split_index:]
+            self.ratings_test_df = pd.concat(
+                [self.ratings_test_df, user_test], ignore_index=True
+            )
             for _, row in user_test.iterrows():
                 movie_id, r = row["movieId"], row["rating"]
 
@@ -121,25 +128,27 @@ class Data:
         df = pd.read_csv(
             self.data_path + "ratings.csv",
             dtype={
-                "movie_id": int,
-                "userId": int,
+                "movie_id": "Int64",
+                "userId": "Int64",
                 "rating": float,
-                "timestamp": int,
+                "timestamp": "Int64",
             },
         )
         df["timestamp"] = pd.to_datetime(df["timestamp"], unit="s")
         df.sort_values(by="timestamp", inplace=True)
-
         shape = (df["userId"].nunique(), self.how_many_unique_movie_ids)
 
-        self.train, self.test = self._create_ratings_matrix(df, shape, test_size)
+        self.interactions_train, self.interactions_test = self._create_ratings_matrix(
+            df, shape, test_size
+        )
+        self.interactions_train_numpy = self.interactions_train.toarray()
 
         (
             self.average_user_rating,
             self.average_item_rating,
-        ) = self._compute_average_ratings(self.train)
+        ) = self._compute_average_ratings(self.interactions_train)
 
-        return self.train, self.test
+        return self.interactions_train, self.interactions_test
 
     def id_to_index(self, id: int, kind: Literal["user", "item"]) -> int:
         """
@@ -224,10 +233,23 @@ class Data:
 
     def get_user_ratings(
         self, user_id: int, dataset: Literal["train", "test"]
-    ) -> NDArray[np.int64]:
+    ) -> NDArray:
         user_index = self.user_id_to_index[user_id]
-        arr = self.train if dataset == "train" else self.test
+        arr = self.interactions_train if dataset == "train" else self.interactions_test
         return csr_array(arr.getrow(user_index)).toarray()[0]
+
+    def get_weighed_user_ratings(self, user_id: int):
+        user_df = self.ratings_train_df[self.ratings_train_df["userId"] == user_id]
+        timestamps = user_df["timestamp"]
+        try:
+            base_time = timestamps.tail(1).item()
+        except ValueError:
+            return []
+        weights = [exponential_decay(timestamp, base_time) for timestamp in timestamps]
+        ratings: list[tuple[int, float]] = list(
+            user_df[["movieId", "rating"]].itertuples(index=False, name=None)
+        )
+        return [(tup[0], tup[1], weight) for tup, weight in zip(ratings, weights)]
 
     def get_liked_movies_indices(
         self, user_id: int, biased: bool, dataset: Literal["train", "test"]
@@ -248,3 +270,37 @@ class Data:
             mask = user_ratings >= 3
         liked_indices = np.flatnonzero(mask)
         return sorted(liked_indices, key=lambda x: user_ratings[x], reverse=True)
+
+    def get_user_bias(self, user_id: int):
+        user_index = self.user_id_to_index[user_id]
+        user_ratings = self.get_user_ratings(user_id, "train")
+        if np.count_nonzero(user_ratings) == 0:
+            return 0
+        nz = user_ratings.nonzero()
+        user_bias = (
+            0 if np.std(user_ratings[nz]) == 0 else self.average_user_rating[user_index]
+        )
+        return user_bias
+
+    def get_weighed_liked_movie_indices(self, user_id: int, biased: bool):
+        user_ratings = self.get_weighed_user_ratings(user_id)
+        if len(user_ratings) == 0:
+            return []
+        user_bias = self.get_user_bias(user_id)
+
+        condition = lambda r: r - user_bias >= 0.0 if biased else lambda r: r >= 3.0
+
+        user_likes = sorted(
+            [
+                (self.item_id_to_index[movie_id], rating, weight)
+                for (movie_id, rating, weight) in user_ratings
+                if condition(rating)
+            ],
+            key=lambda x: x[2],
+            reverse=True,
+        )
+        return user_likes
+
+    def get_ratings_count(self, user_id: int):
+        ratings = self.get_user_ratings(user_id, "train")
+        return np.count_nonzero(ratings)

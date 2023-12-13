@@ -1,15 +1,13 @@
 from abc import ABC, abstractmethod
 from typing_extensions import Self
-from scipy.sparse import coo_array
 import numpy as np
-from numpy.typing import NDArray
 from ..Recommender_System import Recommender_System
 from data import Data
 
 
 class CF_Base(Recommender_System, ABC):
-    ratings_train: coo_array | NDArray[np.float64] | None = None
     data: Data
+    is_fit: bool
 
     @abstractmethod
     def fit(self) -> Self:
@@ -23,18 +21,18 @@ class CF_Base(Recommender_System, ABC):
         """
         Return the indices of the users and items in the train set with less ratings than the threshold
         """
-        if self.ratings_train is None:
+        if not self.is_fit:
             raise RuntimeError("Model untrained, invoke fit before predicting")
         return (
-            np.where(np.sum(self.ratings_train != 0, axis=1) < threshold)[0],
-            np.where(np.sum(self.ratings_train != 0, axis=0) < threshold)[0],
+            np.where(np.sum(self.data.interactions_train != 0, axis=1) < threshold)[0],
+            np.where(np.sum(self.data.interactions_train != 0, axis=0) < threshold)[0],
         )
 
     def _predict_all(self):
         """
         Given a test set, compute the predictions for all the non-zero ratings
         """
-        test_set = self.data.test
+        test_set = self.data.interactions_test
         predictions: list[tuple[int, int, int, float | None]] = []
         for r, u, i in zip(test_set.data, test_set.row, test_set.col):
             predictions.append((u, i, r, self.predict(u, i)))

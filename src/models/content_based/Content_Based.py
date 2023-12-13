@@ -13,17 +13,18 @@ from models.non_personalized import Highest_Rated
 
 
 class Content_Based(Recommender_System):
-    ratings_train: csr_array
-
     def __init__(self):
         super().__init__("Content Based")
 
-    def fit(self, data: Data) -> Self:
+    def fit(
+        self, data: Data, by_timestamp: bool, is_biased: bool, like_perc: float
+    ) -> Self:
         """
         Fit the Tfid and NearestNeighbors models, then create the user profiles
         """
         self.data = data
-        self.ratings_train = data.train.tocsr()
+        self.is_fit = True
+        self.is_biased = is_biased
         self.movies = self.data.movies
         self.np = Highest_Rated().fit(data)
 
@@ -51,14 +52,16 @@ class Content_Based(Recommender_System):
         m = self.vec_model.fit_transform(train)
         self.knn_model = NearestNeighbors(metric="cosine").fit(m)
 
-        n_users = self.ratings_train.shape[0]
+        n_users = self.data.interactions_train.shape[0]
         self.cold_users = []
         self.user_profiles = []
 
         results = [
             result
-            for result in Parallel(n_jobs=-1, backend="loky")(
-                delayed(self._create_user_profile)(user_index)
+            for result in Parallel(n_jobs=-1, backend="sequential")(
+                delayed(self._create_user_profile)(
+                    user_index, by_timestamp, is_biased, like_perc
+                )
                 for user_index in tqdm(
                     range(n_users),
                     leave=False,
@@ -90,22 +93,33 @@ class Content_Based(Recommender_System):
         movie_genres_tags = lists_str_join(movie_genres.tolist(), movie_tags.tolist())
         return self.vec_model.transform([movie_genres_tags])
 
-    def _create_user_profile(self, user_index: int) -> int | NDArray:
+    def _create_user_profile(
+        self, user_index: int, by_timestamp: bool, biased: bool, like_perc: float
+    ) -> int | NDArray:
         """
         Create user profile by averaging the k most liked movies' genres and tags
         If a user has no liked movies return the index and let the caller deal with it
         """
         user_id = self.data.user_index_to_id[user_index]
-        user_ratings = self.data.get_user_ratings(user_id, "train")
-
-        k = int(0.4 * len(user_ratings)) + 1
-        user_likes = self.data.get_liked_movies_indices(user_id, True, "train")[:k]
-
-        # Collect movie vectors and corresponding weights based on ratings
-        movie_vectors = np.array(
-            [self._get_movie_vector(index) for index in user_likes]
-        )
-        weights = user_ratings[user_likes]
+        k = int(like_perc * self.data.get_ratings_count(user_id)) + 1
+        if by_timestamp:
+            user_likes = self.data.get_weighed_liked_movie_indices(user_id, biased)
+            if len(user_likes) == 0:
+                return user_index
+            user_likes = user_likes[:k]
+            movie_vectors = np.array(
+                [self._get_movie_vector(index) for (index, _, _) in user_likes]
+            )
+            weights = [rating * weight for (_, rating, weight) in user_likes]
+        else:
+            user_ratings = self.data.get_user_ratings(user_id, "train")
+            user_likes = self.data.get_liked_movies_indices(user_id, biased, "train")[
+                :k
+            ]
+            movie_vectors = np.array(
+                [self._get_movie_vector(index) for index in user_likes]
+            )
+            weights = user_ratings[user_likes]
 
         try:
             # Apply weighted averaging
@@ -123,9 +137,11 @@ class Content_Based(Recommender_System):
             return self.np.top_n(user_index, n).tolist()
 
         user_profile = self.user_profiles[user_index]
-        already_watched_indices = csr_array(self.data.train.getrow(user_index)).indices
+        already_watched_indices = csr_array(
+            self.data.interactions_train.getrow(user_index)
+        ).indices
 
-        n_movies = self.data.train.shape[1]
+        n_movies = self.data.interactions_train.shape[1]
         max_neighbors = min(n + len(already_watched_indices), n_movies)
 
         neighbors = self.knn_model.kneighbors(user_profile, max_neighbors, False)

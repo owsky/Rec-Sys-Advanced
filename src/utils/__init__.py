@@ -13,3 +13,4 @@ from .metrics import (
     precision,
     recall,
 )
+from .exponential_decay import exponential_decay

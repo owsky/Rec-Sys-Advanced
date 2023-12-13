@@ -15,7 +15,7 @@ class MF_Base(CF_Base, ABC):
     Base class for Collaborative Filtering recommender systems
     """
 
-    ratings_train: coo_array | None = None
+    is_fit: bool
 
     def __init__(self, model_name: str):
         super().__init__(model_name)
@@ -33,9 +33,10 @@ class MF_Base(CF_Base, ABC):
         return np.clip(prediction, 1, 5)
 
     def top_n(self, user_index: int, n=10):
-        if self.ratings_train is None:
+        if not self.is_fit:
             raise RuntimeError("Model untrained, fit first")
-        ratings = csr_array(self.ratings_train.getrow(user_index)).toarray()[0]
+        user_id = self.data.user_index_to_id[user_index]
+        ratings = self.data.get_user_ratings(user_id, "train")
         unrated_indices = np.nonzero(ratings == 0)[0]
         predictions = [
             (item_index, self.predict(user_index, item_index))

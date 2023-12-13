@@ -14,10 +14,12 @@
   - ✅ Neighborhood Based
     - ✅ User-based
     - ✅ Item-based
-- ⏹️ Hybrid
-  - ⏹️ Give more weight to more recent ratings
+  - ✅ Implement Ensemble top N
+- ✅ Hybrid
+- ✅ Give more weight to more recent ratings
 - ✅ Try Word2Vec
 - ⏹️ Implement RandomSearchCV
+- ⏹️ Figure out zero ratings, cold user
 
 New user:
 611,1,5.0,964982703

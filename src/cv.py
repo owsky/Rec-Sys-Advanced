@@ -3,8 +3,8 @@ from models import cv_hyper_svd_helper, cv_hyper_als_helper, cv_hyper_als_mr_hel
 
 
 def cv(data: Data):
-    train_set = data.train
-    test_set = data.test
+    train_set = data.interactions_train
+    test_set = data.interactions_test
     cv_hyper_svd_helper(train_set, test_set)
     # cv_hyper_als_helper(train_set, test_set)
     # cv_hyper_als_mr_helper(train_set, test_set)

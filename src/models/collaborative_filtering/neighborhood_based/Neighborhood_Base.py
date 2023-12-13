@@ -10,7 +10,6 @@ from typing_extensions import Self
 
 
 class Neighborhood_Base(CF_Base):
-    ratings_train: NDArray[np.float64] | None
     kind: Literal["user", "item"]
     similarity: Literal["pearson", "cosine"]
 
@@ -24,13 +23,12 @@ class Neighborhood_Base(CF_Base):
             f"Fitting the {self.kind}-based Neighborhood Filtering model with {self.similarity}..."
         )
         self.data = data
-        self.ratings = data.train.todense().astype(np.float64)
-        self.ratings_train = self.ratings
+        self.is_fit = True
 
         if self.kind == "user":
-            dim = data.train.shape[0]
+            dim = data.interactions_train.shape[0]
         elif self.kind == "item":
-            dim = data.train.shape[1]
+            dim = data.interactions_train.shape[1]
         else:
             raise RuntimeError("Wrong value for parameter kind")
 
@@ -79,11 +77,11 @@ class Neighborhood_Base(CF_Base):
         """
         # Extract the total user or item ratings
         if self.kind == "user":
-            ratings_i = self.ratings[i, :]
-            ratings_j = self.ratings[j, :]
+            ratings_i = self.data.interactions_train_numpy[i, :]
+            ratings_j = self.data.interactions_train_numpy[j, :]
         else:
-            ratings_i = self.ratings[:, i]
-            ratings_j = self.ratings[:, j]
+            ratings_i = self.data.interactions_train_numpy[:, i]
+            ratings_j = self.data.interactions_train_numpy[:, j]
 
         # Find the indices where both users have non-zero ratings
         common_ratings_mask = (ratings_i != 0) & (ratings_j != 0)
@@ -151,10 +149,10 @@ class Neighborhood_Base(CF_Base):
         return num / den
 
     def top_n(self, user_index: int, n=10):
-        if self.ratings_train is None:
+        if not self.is_fit:
             raise RuntimeError("Model untrained, fit first")
-        ratings = self.ratings_train[user_index]
-        unrated_indices = np.nonzero(ratings == 0)[0]
+        ratings = self.data.interactions_train_numpy[user_index]
+        unrated_indices = np.flatnonzero(ratings == 0)
         predictions = [
             (item_index, self.predict(user_index, item_index))
             for item_index in unrated_indices
