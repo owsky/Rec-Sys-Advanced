@@ -3,13 +3,13 @@ from models import Content_Based
 
 
 def cb(data: Data):
-    # Content_Based().fit(data, False, False, 1.0).pretty_print_accuracy_top_n()
-    # Content_Based().fit(data, True, False, 1.0).pretty_print_accuracy_top_n()
-    Content_Based().fit(data, True, True, 1.0).pretty_print_accuracy_top_n()
-    # Content_Based().fit(data, False, True, 0.4).pretty_print_accuracy_top_n()
-    # Content_Based().fit(data, True, True, 0.4).pretty_print_accuracy_top_n()
-    # model = Content_Based().fit(data, False, False, 1.0)
-    # model = Content_Based().fit(data, True, False, 1.0)
+    # Content_Based(data).fit( False, False, 1.0).pretty_print_accuracy_top_n()
+    # Content_Based(data).fit( True, False, 1.0).pretty_print_accuracy_top_n()
+    Content_Based(data).fit(True, True, 1.0).pretty_print_accuracy_top_n()
+    # Content_Based(data).fit( False, True, 0.4).pretty_print_accuracy_top_n()
+    # Content_Based(data).fit( True, True, 0.4).pretty_print_accuracy_top_n()
+    # model = Content_Based(data).fit( False, False, 1.0)
+    # model = Content_Based(data).fit( True, False, 1.0)
 
     # user_id = 330976
     # print(f"\nGetting recommendations for user {user_id}")

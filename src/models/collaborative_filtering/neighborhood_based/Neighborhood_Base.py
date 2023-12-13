@@ -3,7 +3,6 @@ from joblib import Parallel, delayed
 import numpy as np
 from numpy.typing import NDArray
 from tqdm import tqdm
-from data import Data
 from scipy.stats import pearsonr
 from ..CF_Base import CF_Base
 from typing_extensions import Self
@@ -13,7 +12,7 @@ class Neighborhood_Base(CF_Base):
     kind: Literal["user", "item"]
     similarity: Literal["pearson", "cosine"]
 
-    def fit(self, data: Data) -> Self:
+    def fit(self) -> Self:
         """
         Compute the similarity matrix for the input data using either Pearson Correlation
         or Adjusted Cosine Similarity. Parameter kind determines whether user-user or item-item strategy
@@ -22,13 +21,12 @@ class Neighborhood_Base(CF_Base):
         print(
             f"Fitting the {self.kind}-based Neighborhood Filtering model with {self.similarity}..."
         )
-        self.data = data
         self.is_fit = True
 
         if self.kind == "user":
-            dim = data.interactions_train.shape[0]
+            dim = self.data.interactions_train.shape[0]
         elif self.kind == "item":
-            dim = data.interactions_train.shape[1]
+            dim = self.data.interactions_train.shape[1]
         else:
             raise RuntimeError("Wrong value for parameter kind")
 
@@ -164,7 +162,7 @@ class Neighborhood_Base(CF_Base):
         ]
         return predictions[:n]
 
-    def crossvalidation_hyperparameters(self):
+    def gridsearch_cv(self):
         raise RuntimeError(
             f"Model {self.__class__.__name__} has no hyperparameters to crossvalidate"
         )

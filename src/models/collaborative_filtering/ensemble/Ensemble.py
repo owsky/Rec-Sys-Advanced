@@ -12,8 +12,7 @@ class Ensemble(CF_Base):
     def __init__(
         self, data: Data, sgd_model: SGD, als_model: ALS, nn_model: Neighborhood_Base
     ):
-        super().__init__("Ensemble")
-        self.data = data
+        super().__init__(data, "Ensemble")
         self.train_set = data.interactions_train
         self.ratings_train = data.interactions_train
         self.sgd_model = sgd_model
@@ -22,11 +21,11 @@ class Ensemble(CF_Base):
 
     def fit(self) -> Self:
         if not self.sgd_model.is_fit:
-            self.sgd_model.fit(self.data)
+            self.sgd_model.fit()
         if not self.als_model.is_fit:
-            self.als_model.fit(self.data)
+            self.als_model.fit()
         if not self.nn_model.is_fit:
-            self.nn_model.fit(self.data)
+            self.nn_model.fit()
         self.is_fit = True
         return self
 
@@ -71,7 +70,7 @@ class Ensemble(CF_Base):
 
         return result
 
-    def crossvalidation_hyperparameters(self):
+    def gridsearch_cv(self):
         raise RuntimeError(
             f"Model {self.__class__.__name__} has no hyperparameters to crossvalidate"
         )

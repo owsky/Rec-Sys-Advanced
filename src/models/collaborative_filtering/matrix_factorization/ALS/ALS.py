@@ -1,7 +1,5 @@
-from itertools import product
 from typing import Literal
 import numpy as np
-from scipy.sparse import coo_array
 from data import Data
 from ..MF_Base import MF_Base
 from utils import RandomSingleton
@@ -13,14 +11,14 @@ class ALS(MF_Base):
     Concrete class for Alternating Least Squares recommender system
     """
 
-    def __init__(self):
-        super().__init__("Alternating Least Squares")
+    def __init__(self, data: Data):
+        super().__init__(data, "Alternating Least Squares")
 
-    def fit(self, data: Data, n_factors=10, epochs=10, reg=0.01) -> Self:
-        print("Fitting the sequential Alternating Least Squares model...")
-        self.data = data
+    def fit(self, silent=False, n_factors=10, epochs=10, reg=0.01) -> Self:
+        if not silent:
+            print("Fitting the sequential Alternating Least Squares model...")
         self.is_fit = True
-        n_users, n_items = data.interactions_train.shape
+        n_users, n_items = self.data.interactions_train.shape
 
         self.P = RandomSingleton.get_random_normal(
             loc=0, scale=0.1, size=(n_users, n_factors)
@@ -75,28 +73,3 @@ class ALS(MF_Base):
             sliced_axis = row[indices]
         sliced_data = data[indices]
         return (sliced_axis, sliced_data)
-
-    def cross_validate_hyperparameters(
-        self,
-        train_set: coo_array,
-        test_set: coo_array,
-        n_factors_range: list[int],
-        epochs_range: list[int],
-        reg_range: list[float],
-    ):
-        """
-        Define the hyperparameter ranges required for crossvalidation, compute the product and invoke the super class' method
-        """
-        prod = product(n_factors_range, epochs_range, reg_range)
-        return self.crossvalidation_hyperparameters("ALS", train_set, test_set, prod)
-
-
-def cv_hyper_als_helper(train_set: coo_array, test_set: coo_array):
-    print("Grid Search Cross Validation for ALS")
-    als = ALS()
-    n_factors_range = list(np.linspace(start=2, stop=1000, num=100, dtype=int))
-    epochs_range = list(np.linspace(start=10, stop=100, num=20, dtype=int))
-    reg_range = list(np.linspace(start=0.001, stop=2.0, num=100, dtype=float))
-    als.cross_validate_hyperparameters(
-        train_set, test_set, n_factors_range, epochs_range, reg_range
-    )

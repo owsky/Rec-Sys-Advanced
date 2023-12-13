@@ -1,12 +1,12 @@
 from abc import ABC, abstractmethod
 import math
-from typing import Callable
+from typing import Callable, Dict, Literal
 import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import csr_array
 from tqdm import tqdm
 from data import Data
-from utils.metrics import (
+from utils import (
     precision,
     recall,
     f1_score,
@@ -14,8 +14,10 @@ from utils.metrics import (
     recall_at_k,
     average_reciprocal_hit_rank,
     normalized_discounted_cumulative_gain,
+    generate_combinations,
 )
 from tabulate import tabulate
+from joblib import Parallel, delayed
 
 
 class Recommender_System(ABC):
@@ -23,11 +25,12 @@ class Recommender_System(ABC):
     is_fit: bool
     is_biased = False
 
-    def __init__(self, model_name: str):
+    def __init__(self, data: Data, model_name: str):
         self.model_name = model_name
+        self.data = data
 
     @abstractmethod
-    def fit(self):
+    def fit(self, **kwargs):
         pass
 
     @abstractmethod
@@ -38,7 +41,7 @@ class Recommender_System(ABC):
     def top_n(self, user_index: int, n: int) -> list[int] | NDArray[np.int64]:
         pass
 
-    def accuracy_top_n(self, n=30):
+    def accuracy_top_n(self, n=30, silent=False):
         """
         Compute all accuracy metrics using the test set
         """
@@ -56,7 +59,10 @@ class Recommender_System(ABC):
         ndcgs = []
 
         for user_index in tqdm(
-            range(n_users), leave=False, desc="Computing accuracy for top N..."
+            range(n_users),
+            leave=False,
+            desc="Computing accuracy for top N...",
+            disable=silent,
         ):
             test_ratings = csr_array(
                 self.data.interactions_test.getrow(user_index)
@@ -169,6 +175,59 @@ class Recommender_System(ABC):
         print(f"\nModel {self.model_name} predictions accuracy:")
         print(f"MAE: {mae}, RMSE: {rmse}\n")
 
-    @abstractmethod
-    def crossvalidation_hyperparameters(self):
-        pass
+    def _do_cv(self, kind: Literal["prediction", "top_n"], **kwargs):
+        self.fit(silent=True, **kwargs)
+        if kind == "prediction":
+            mae = self._accuracy_mae()
+            rmse = self._accuracy_rmse()
+            metrics = (mae, rmse)
+        else:
+            metrics = self.accuracy_top_n(silent=True)
+        return [*metrics, kwargs]
+
+    def gridsearch_cv(
+        self,
+        kind: Literal["prediction", "top_n"],
+        params_space: Dict[str, list] | Dict[str, NDArray],
+    ):
+        combinations = generate_combinations(params_space)
+        results = [
+            result
+            for result in Parallel(n_jobs=-1, backend="loky")(
+                delayed(self._do_cv)(kind, **args)
+                for args in tqdm(
+                    combinations, desc="Grid search in progress..", leave=False
+                )
+            )
+            if result is not None
+        ]
+
+        if kind == "prediction":
+            results.sort(key=lambda x: (x[0], x[1]))
+            headers = ["MAE", "RMSE", "Hyperparameters"]
+        else:
+            results.sort(key=lambda x: x[5], reverse=True)
+            headers = [
+                "Precision",
+                "Precision@k",
+                "Recall",
+                "Recall@k",
+                "F1",
+                "F1@k",
+                "ARHR",
+                "NDCG",
+                "Hyperparameters",
+            ]
+        results = results[:5]
+
+        print(f"\n{self.model_name} CV results:")
+        print(
+            tabulate(
+                results,
+                headers=headers,
+                tablefmt="grid",
+                floatfmt=".4f",
+                numalign="center",
+                stralign="center",
+            )
+        )

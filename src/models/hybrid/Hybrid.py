@@ -9,12 +9,12 @@ from ..Recommender_System import Recommender_System
 from utils import lists_str_join
 from joblib import Parallel, delayed
 from tqdm import tqdm
-from models.non_personalized import Highest_Rated
+from models.non_personalized import Most_Popular
 
 
 class Hybrid(Recommender_System):
-    def __init__(self):
-        super().__init__("Hybrid")
+    def __init__(self, data: Data):
+        super().__init__(data, "Hybrid")
 
     def _extract_item_features(self) -> NDArray[np.float64]:
         self.vec_model = TfidfVectorizer(
@@ -59,15 +59,14 @@ class Hybrid(Recommender_System):
         return np.array(combined_features)
 
     def fit(
-        self, data: Data, by_timestamp: bool, is_biased: bool, like_perc: float
+        self, by_timestamp: bool, is_biased: bool, like_perc: float, silent=False
     ) -> Self:
         """
         Fit the Tfid and NearestNeighbors models, then create the user profiles
         """
-        self.data = data
         self.is_fit = True
         self.is_biased = is_biased
-        self.np = Highest_Rated().fit(data)
+        self.np = Most_Popular(self.data).fit(silent)
 
         item_features = self._extract_item_features()
         self.movie_vectors = self._combine_features(item_features)
@@ -84,7 +83,10 @@ class Hybrid(Recommender_System):
                     user_index, by_timestamp, is_biased, like_perc
                 )
                 for user_index in tqdm(
-                    range(n_users), desc="Fitting the Hybrid model...", leave=False
+                    range(n_users),
+                    desc="Fitting the Hybrid model...",
+                    leave=False,
+                    disable=silent,
                 )
             )
             if result is not None
@@ -167,8 +169,3 @@ class Hybrid(Recommender_System):
 
     def _predict_all(self):
         raise RuntimeError(f"Model {self.__class__.__name__} cannot predict ratings")
-
-    def crossvalidation_hyperparameters(self):
-        raise RuntimeError(
-            f"Model {self.__class__.__name__} has no hyperparameters to crossvalidate"
-        )

@@ -1,11 +1,9 @@
-from itertools import product
 from typing import Iterable, Literal
 from data import Data
 from ..MF_Base import MF_Base
 import numpy as np
 from pyspark import RDD, Accumulator, AccumulatorParam, SparkContext, SparkConf
 from utils import RandomSingleton
-from scipy.sparse import coo_array
 from numpy.typing import NDArray
 from typing_extensions import Self
 
@@ -15,10 +13,10 @@ class ALS_MR(MF_Base):
     Concrete class for Map Reduce Alternating Least Squares recommender system
     """
 
-    def __init__(self):
-        super().__init__("Alternating Least Squares")
+    def __init__(self, data: Data):
+        super().__init__(data, "Alternating Least Squares")
 
-    def fit(self, data: Data, n_factors=10, epochs=10, reg=0.01) -> Self:
+    def fit(self, silent=False, n_factors=10, epochs=10, reg=0.01) -> Self:
         class DictAccumulator(AccumulatorParam):
             """
             Custom dictionary accumulator, needed to propagate the factors updates across the cluster
@@ -42,8 +40,8 @@ class ALS_MR(MF_Base):
                     currDict.update({key: value})
                 return currDict
 
-        print("Fitting the Map Reduce Alternating Least Squares model...")
-        self.data = data
+        if not silent:
+            print("Fitting the Map Reduce Alternating Least Squares model...")
         self.is_fit = True
 
         # Spark initialization
@@ -138,30 +136,3 @@ class ALS_MR(MF_Base):
         # Stop the Spark application
         spark.stop()
         return self
-
-    def cross_validate_hyperparameters(
-        self,
-        train_set: coo_array,
-        test_set: coo_array,
-        n_factors_range: list[int],
-        epochs_range: list[int],
-        reg_range: list[float],
-    ):
-        """
-        Define the hyperparameter ranges required for crossvalidation, compute the product and invoke the super class' method
-        """
-        prod = product(n_factors_range, epochs_range, reg_range)
-        return self.crossvalidation_hyperparameters(
-            "ALS", train_set, test_set, prod, True
-        )
-
-
-def cv_hyper_als_mr_helper(train_set: coo_array, test_set: coo_array):
-    print("Grid Search Cross Validation for ALS")
-    als_mr = ALS_MR()
-    n_factors_range = list(np.linspace(start=2, stop=1000, num=100, dtype=int))
-    epochs_range = list(np.linspace(start=10, stop=100, num=20, dtype=int))
-    reg_range = list(np.linspace(start=0.001, stop=2.0, num=100, dtype=float))
-    als_mr.cross_validate_hyperparameters(
-        train_set, test_set, n_factors_range, epochs_range, reg_range
-    )

@@ -3,15 +3,15 @@ from models import Hybrid, Word2VecSession
 
 
 def hb(data: Data):
-    # Hybrid().fit(data, False, False, 0.4).pretty_print_accuracy_top_n()
-    # Hybrid().fit(data, True, False, 0.4).pretty_print_accuracy_top_n()
-    # Hybrid().fit(data, False, True, 0.4).pretty_print_accuracy_top_n()
-    # Hybrid().fit(data, True, True, 0.4).pretty_print_accuracy_top_n()
-    Hybrid().fit(data, False, False, 1.0).pretty_print_accuracy_top_n()
-    Hybrid().fit(data, False, True, 1.0).pretty_print_accuracy_top_n()
-    # Hybrid().fit(data, True, False, 1.0).pretty_print_accuracy_top_n()
-    # model = Hybrid().fit(data, False, False, 0.4)
-    # model = Hybrid().fit(data, True, True, 1.0)
+    # Hybrid(data).fit(False, False, 0.4).pretty_print_accuracy_top_n()
+    # Hybrid(data).fit(True, False, 0.4).pretty_print_accuracy_top_n()
+    # Hybrid(data).fit(False, True, 0.4).pretty_print_accuracy_top_n()
+    # Hybrid(data).fit(True, True, 0.4).pretty_print_accuracy_top_n()
+    Hybrid(data).fit(False, False, 1.0).pretty_print_accuracy_top_n()
+    Hybrid(data).fit(False, True, 1.0).pretty_print_accuracy_top_n()
+    # Hybrid(data).fit(True, False, 1.0).pretty_print_accuracy_top_n()
+    # model = Hybrid(data).fit(False, False, 0.4)
+    # model = Hybrid(data).fit(True, True, 1.0)
 
     # user_id = 330976
     # print(f"\nGetting recommendations for user {user_id}")

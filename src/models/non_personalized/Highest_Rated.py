@@ -5,11 +5,10 @@ from .Non_Personalized_Base import Non_Personalized_Base
 
 
 class Highest_Rated(Non_Personalized_Base):
-    def __init__(self):
-        super().__init__("Highest Rated")
+    def __init__(self, data: Data):
+        super().__init__(data, "Highest Rated")
 
-    def fit(self, data: Data) -> Self:
-        self.data = data
+    def fit(self, silent=False) -> Self:
         self.is_fit = True
         return self
 

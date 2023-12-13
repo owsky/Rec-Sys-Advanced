@@ -1,13 +1,17 @@
 import numpy as np
 from typing import Literal
+from data import Data
 from .Neighborhood_Base import Neighborhood_Base
 
 
 class Item_Based(Neighborhood_Base):
     def __init__(
-        self, kind: Literal["user", "item"], similarity: Literal["pearson", "cosine"]
+        self,
+        data: Data,
+        kind: Literal["user", "item"],
+        similarity: Literal["pearson", "cosine"],
     ):
-        super().__init__("Item-based Neighborhood Filtering")
+        super().__init__(data, "Item-based Neighborhood Filtering")
         self.kind = kind
         self.similarity = similarity
 

@@ -6,11 +6,12 @@ from scipy.sparse import csr_array
 
 
 class Most_Popular(Non_Personalized_Base):
-    def __init__(self):
-        super().__init__("Most Popular")
+    def __init__(self, data: Data):
+        super().__init__(data, "Most Popular")
 
-    def fit(self, data: Data) -> Self:
-        self.data = data
+    def fit(self, silent=False) -> Self:
+        if not silent:
+            print("Fitting Most Popular model")
         self.is_fit = True
         popularity = []
         n_users, n_items = self.data.interactions_train.shape

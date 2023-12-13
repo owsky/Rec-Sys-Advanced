@@ -1,5 +1,5 @@
 from abc import ABC
-from scipy.sparse import csr_array, csc_array
+from scipy.sparse import csc_array
 import numpy as np
 from ..Recommender_System import Recommender_System
 
@@ -29,7 +29,7 @@ class Non_Personalized_Base(Recommender_System, ABC):
     def _predict_all(self):
         raise RuntimeError(f"Model {self.__class__.__name__} cannot predict ratings")
 
-    def crossvalidation_hyperparameters(self):
+    def gridsearch_cv(self):
         raise RuntimeError(
             f"Model {self.__class__.__name__} has no hyperparameters to crossvalidate"
         )

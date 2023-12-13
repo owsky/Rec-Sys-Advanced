@@ -4,7 +4,7 @@ from scipy.sparse import coo_array
 import numpy as np
 from numpy.typing import NDArray
 from tabulate import tabulate
-from cross_validation import grid_search
+from data import Data
 from ..CF_Base import CF_Base
 from typing_extensions import Self
 from scipy.sparse import csr_array
@@ -17,13 +17,13 @@ class MF_Base(CF_Base, ABC):
 
     is_fit: bool
 
-    def __init__(self, model_name: str):
-        super().__init__(model_name)
+    def __init__(self, data: Data, model_name: str):
+        super().__init__(data, model_name)
         self.P: NDArray[np.float64] = np.array([])
         self.Q: NDArray[np.float64] = np.array([])
 
     @abstractmethod
-    def fit(self, R: coo_array) -> Self:
+    def fit(self) -> Self:
         pass
 
     def predict(self, u: int, i: int) -> float:
@@ -47,27 +47,3 @@ class MF_Base(CF_Base, ABC):
             for x in sorted(predictions, key=lambda x: x[1], reverse=True)
         ]
         return predictions[:n]
-
-    def crossvalidation_hyperparameters(
-        self,
-        model_label: str,
-        train_set: coo_array,
-        test_set: coo_array,
-        prod: product,
-        sequential=False,
-    ):
-        """
-        Helper function invoked by the concrete classes to compute and output the results of hyperparameter crossvalidation
-        """
-        results = grid_search(self, train_set, test_set, prod, sequential)
-        results = sorted(results, key=lambda x: (x[1], x[2]))[:10]
-        table = []
-        best_params = ()
-        for i, result in enumerate(results):
-            if i == 0:
-                best_params = result[0]
-            table.append(list(result))
-        headers = ["Hyperparameters", "MAE", "RMSE"]
-        print(f"Crossvalidation results for {model_label}")
-        print(tabulate(table, headers=headers, tablefmt="grid"))
-        return best_params

@@ -6,33 +6,32 @@ import numpy as np
 
 
 class Word2VecSession(Recommender_System):
-    def __init__(self):
-        super().__init__("Word2Vec Session")
+    def __init__(self, data: Data):
+        super().__init__(data, "Word2Vec Session")
 
-    def fit(self, data: Data):
-        self.data = data
+    def fit(self, vector_size: int, window: int, biased: bool, silent=False):
+        if not silent:
+            print("Fitting Word2Vec model")
+        self.model = self._train_word2vec_model(vector_size, window, biased)
         self.is_fit = True
-        self.model = self._train_word2vec_model()
+        self.is_biased = biased
         return self
 
-    def _train_word2vec_model(self):
-        corpus = []
-        for user_ratings in self.data.interactions_train_numpy:
-            liked = [str(x) for x in np.flatnonzero(user_ratings >= 3)]
-            corpus.append(liked)
+    def _train_word2vec_model(self, vector_size: int, window: int, biased: bool):
+        # corpus = []
+        # for user_ratings in self.data.interactions_train_numpy:
+        #     liked = [str(x) for x in np.flatnonzero(user_ratings >= 3)]
+        #     corpus.append(liked)
+
+        n_users = self.data.interactions_train.shape[0]
+        corpus = [self._get_str_liked(user_index) for user_index in range(n_users)]
 
         model = Word2Vec(
             sentences=corpus,
-            vector_size=100,
-            window=10,
-            negative=10,
-            sg=1,
-            hs=0,
-            alpha=0.03,
-            min_alpha=0.0007,
+            vector_size=vector_size,
+            window=window,
             min_count=1,
-            workers=12,
-            seed=14,
+            seed=42,
         )
         model.train(corpus, epochs=10, total_examples=len(corpus))
         model.init_sims(replace=True)
@@ -64,15 +63,16 @@ class Word2VecSession(Recommender_System):
         return super().predict()
 
     def top_n(self, user_index: int, n: int) -> list[int] | NDArray[np.int64]:
-        user_ratings = self.data.interactions_train_numpy[user_index]
-        liked = [str(x) for x in np.flatnonzero(user_ratings >= 3)]
+        liked = self._get_str_liked(user_index)
         v = self.aggregate_vectors(liked)
         if len(v) == 0:
             return []
         return self.similar_products(v, n)
 
+    def _get_str_liked(self, user_index):
+        user_id = self.data.user_index_to_id[user_index]
+        liked = self.data.get_liked_movies_indices(user_id, self.is_biased, "train")
+        return [str(x) for x in liked]
+
     def _predict_all(self) -> list[tuple[int, int, int, float | None]]:
         return super()._predict_all()
-
-    def crossvalidation_hyperparameters(self):
-        return super().crossvalidation_hyperparameters()
