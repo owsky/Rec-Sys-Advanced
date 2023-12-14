@@ -81,7 +81,7 @@ class Data:
         self.ratings_train_df = pd.DataFrame()
         self.ratings_test_df = pd.DataFrame()
 
-        def t(df: DataFrame, kind: Literal["train", "test"]):
+        def process_user(df: DataFrame, kind: Literal["train", "test"]):
             nonlocal new_user_index
             for _, row in df.iterrows():
                 movie_id, r = row["movieId"], row["rating"]
@@ -113,41 +113,13 @@ class Data:
             self.ratings_train_df = pd.concat(
                 [self.ratings_train_df, user_train], ignore_index=True
             )
-            for _, row in user_train.iterrows():
-                movie_id, r = row["movieId"], row["rating"]
-
-                if user_id in self.user_id_to_index:
-                    user_index = self.user_id_to_index[user_id]
-                else:
-                    user_index = new_user_index
-                    self.user_id_to_index[user_id] = user_index
-                    self.user_index_to_id[user_index] = user_id
-                    new_user_index += 1
-
-                item_index = self.item_id_to_index[movie_id]
-                data_train.append(r)
-                row_indices_train.append(user_index)
-                col_indices_train.append(item_index)
+            process_user(user_train, "train")
 
             user_test: DataFrame = user_df.iloc[split_index:]
             self.ratings_test_df = pd.concat(
                 [self.ratings_test_df, user_test], ignore_index=True
             )
-            for _, row in user_test.iterrows():
-                movie_id, r = row["movieId"], row["rating"]
-
-                if user_id in self.user_id_to_index:
-                    user_index = self.user_id_to_index[user_id]
-                else:
-                    user_index = new_user_index
-                    self.user_id_to_index[user_id] = user_index
-                    self.user_index_to_id[user_index] = user_id
-                    new_user_index += 1
-
-                item_index = self.item_id_to_index[movie_id]
-                data_test.append(r)
-                row_indices_test.append(user_index)
-                col_indices_test.append(item_index)
+            process_user(user_test, "test")
 
         return coo_array(
             (data_train, (row_indices_train, col_indices_train)), shape=shape
