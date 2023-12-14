@@ -1,4 +1,3 @@
-from typing_extensions import Self
 from numpy import int64
 from numpy.typing import NDArray
 from data import Data
@@ -9,6 +8,10 @@ from ..CF_Base import CF_Base
 
 
 class Ensemble(CF_Base):
+    """
+    Ensemble of Collaborative Filtering models
+    """
+
     def __init__(
         self, data: Data, sgd_model: SGD, als_model: ALS, nn_model: Neighborhood_Base
     ):
@@ -19,7 +22,7 @@ class Ensemble(CF_Base):
         self.als_model = als_model
         self.nn_model = nn_model
 
-    def fit(self) -> Self:
+    def fit(self):
         if not self.sgd_model.is_fit:
             self.sgd_model.fit()
         if not self.als_model.is_fit:

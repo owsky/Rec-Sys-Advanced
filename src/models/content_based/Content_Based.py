@@ -16,9 +16,7 @@ class Content_Based(Recommender_System):
     def __init__(self, data: Data):
         super().__init__(data, "Content Based")
 
-    def fit(
-        self, by_timestamp: bool, biased: bool, like_perc: float, silent=False
-    ) -> Self:
+    def fit(self, by_timestamp: bool, biased: bool, like_perc: float, silent=False):
         """
         Fit the Tfid and NearestNeighbors models, then create the user profiles
         """
@@ -66,6 +64,7 @@ class Content_Based(Recommender_System):
                     leave=False,
                     desc="Fitting the Content Based model...",
                     disable=silent,
+                    dynamic_ncols=True,
                 )
             )
             if result is not None

@@ -1,9 +1,10 @@
 from abc import ABC, abstractmethod
 import math
+import os
 from typing import Callable, Dict, Literal
+import joblib
 import numpy as np
 from numpy.typing import NDArray
-from scipy.sparse import csr_array
 from tqdm import tqdm
 from data import Data
 from utils import (
@@ -21,9 +22,25 @@ from joblib import Parallel, delayed
 
 
 class Recommender_System(ABC):
+    """
+    Abstract class that serves as main blueprint for the recommender systems' APIs
+    Also provides useful methods for computing accuracy and crossvalidating
+    """
+
     data: Data
     is_fit: bool
     is_biased = False
+    prediction_metrics = ["MAE", "RMSE"]
+    top_n_metrics = [
+        "Precision",
+        "Precision@k",
+        "Recall",
+        "Recall@k",
+        "F1",
+        "F1@k",
+        "Average Reciprocal Hit Rank",
+        "Normalized Discounted Cumulative Gain",
+    ]
 
     def __init__(self, data: Data, model_name: str):
         self.model_name = model_name
@@ -34,11 +51,11 @@ class Recommender_System(ABC):
         pass
 
     @abstractmethod
-    def predict(self):
+    def predict(self, u: int, i: int) -> float:
         pass
 
     @abstractmethod
-    def top_n(self, user_index: int, n: int) -> list[int] | NDArray[np.int64]:
+    def top_n(self, user_index: int, n: int) -> list[int]:
         pass
 
     def accuracy_top_n(self, n=30, silent=False):
@@ -49,14 +66,7 @@ class Recommender_System(ABC):
             raise RuntimeError("Untrain model, invoke fit before predicting")
         n_users = self.data.interactions_train.shape[0]
 
-        precisions = []
-        precisions_at_k = []
-        recalls = []
-        recalls_at_k = []
-        f1_scores = []
-        f1_at_k_scores = []
-        arhrs = []
-        ndcgs = []
+        metrics = []
 
         for user_index in tqdm(
             range(n_users),
@@ -64,21 +74,13 @@ class Recommender_System(ABC):
             desc="Computing accuracy for top N...",
             disable=silent,
         ):
-            test_ratings = csr_array(
-                self.data.interactions_test.getrow(user_index)
-            ).toarray()[0]
-            if self.is_biased:
-                user_id = self.data.user_index_to_id[user_index]
-                user_bias = self.data.get_user_bias(user_id)
-                relevant = np.flatnonzero(test_ratings - user_bias >= 0)
-            else:
-                relevant = np.flatnonzero(test_ratings >= 3)
+            user_id = self.data.user_index_to_id[user_index]
+            relevant = self.data.get_liked_movies_indices(
+                user_id, self.is_biased, "test"
+            )
             if len(relevant) < 2:
                 continue
-            elif len(relevant) < n:
-                n_adj = len(relevant)
-            else:
-                n_adj = n
+            n_adj = len(relevant) if len(relevant) < n else n
             recommended = [
                 self.data.item_id_to_index[x] for x in self.top_n(user_index, n_adj)
             ]
@@ -93,25 +95,10 @@ class Recommender_System(ABC):
             f1 = f1_score(prec, rec)
             f1_at_k = f1_score(prec_at_k, rec_at_k)
             ndcg = normalized_discounted_cumulative_gain(relevant, recommended)
-            precisions.append(prec)
-            precisions_at_k.append(prec_at_k)
-            recalls.append(rec)
-            recalls_at_k.append(rec_at_k)
-            arhrs.append(arhr)
-            f1_scores.append(f1)
-            f1_at_k_scores.append(f1_at_k)
-            ndcgs.append(ndcg)
+            metrics.append([prec, prec_at_k, rec, rec_at_k, f1, f1_at_k, arhr, ndcg])
 
-        return (
-            float(np.mean(precisions)),
-            float(np.mean(precisions_at_k)),
-            float(np.mean(recalls)),
-            float(np.mean(recalls_at_k)),
-            float(np.mean(f1_scores)),
-            float(np.mean(f1_at_k_scores)),
-            float(np.mean(arhrs)),
-            float(np.mean(ndcgs)),
-        )
+        metrics = np.mean(metrics, axis=0)
+        return tuple(metrics)
 
     @abstractmethod
     def _predict_all(self) -> list[tuple[int, int, int, float | None]]:
@@ -119,7 +106,7 @@ class Recommender_System(ABC):
 
     def _compute_prediction_errors(self, loss_function: Callable):
         """
-        Given a test set and a loss function, compute predictions and errors
+        Given a test set and a loss function, compute the errors
         """
         if not self.is_fit:
             raise RuntimeError("Untrain model, invoke fit before predicting")
@@ -147,35 +134,35 @@ class Recommender_System(ABC):
 
     def pretty_print_accuracy_top_n(self, n=30):
         print(f"\n{self.model_name} model top N accuracy:")
-        table = list(self.accuracy_top_n(n))
-        headers = [
-            "Precision",
-            "Precision@k",
-            "Recall",
-            "Recall@k",
-            "F1",
-            "F1@k",
-            "Average Reciprocal Hit Rank",
-            "Normalized Discounted Cumulative Gain",
-        ]
-        print(
-            tabulate(
-                [table],
-                headers=headers,
-                tablefmt="grid",
-                floatfmt=".4f",
-                numalign="center",
-                stralign="center",
-            )
+        accuracy = list(self.accuracy_top_n(n))
+        table = tabulate(
+            [accuracy],
+            headers=self.top_n_metrics,
+            tablefmt="grid",
+            floatfmt=".4f",
+            numalign="center",
+            stralign="center",
         )
+        print(table)
 
     def pretty_print_accuracy_predictions(self):
-        mae = self._accuracy_mae()
-        rmse = self._accuracy_rmse()
-        print(f"\nModel {self.model_name} predictions accuracy:")
-        print(f"MAE: {mae}, RMSE: {rmse}\n")
+        print(f"\n{self.model_name} model predictions accuracy:")
+        accuracy = (self._accuracy_mae(), self._accuracy_rmse())
+        table = tabulate(
+            [accuracy],
+            headers=self.prediction_metrics,
+            tablefmt="grid",
+            floatfmt=".4f",
+            numalign="center",
+            stralign="center",
+        )
+        print(table)
 
     def _do_cv(self, kind: Literal["prediction", "top_n"], **kwargs):
+        """
+        Fit the model with the given parameters and return the accuracy metrics
+        alongside the param combination
+        """
         self.fit(silent=True, **kwargs)
         if kind == "prediction":
             mae = self._accuracy_mae()
@@ -190,34 +177,37 @@ class Recommender_System(ABC):
         kind: Literal["prediction", "top_n"],
         params_space: Dict[str, list] | Dict[str, NDArray],
     ):
+        """
+        Perform the grid search cross validation for the model
+        """
         combinations = generate_combinations(params_space)
-        results = [
-            result
-            for result in Parallel(n_jobs=-1, backend="loky")(
-                delayed(self._do_cv)(kind, **args)
-                for args in tqdm(
-                    combinations, desc="Grid search in progress..", leave=False
-                )
+        results = []
+
+        # Check if a partial CV exists for the current model
+        try:
+            if not os.path.exists(".joblib"):
+                os.mkdir(".joblib")
+            results = joblib.load(f".joblib/partial_cv_{self.model_name}")
+        except FileNotFoundError:
+            pass
+
+        for result in Parallel(n_jobs=-1, backend="loky")(
+            delayed(self._do_cv)(kind, **args)
+            for args in tqdm(
+                combinations, desc="Grid search in progress..", leave=False
             )
-            if result is not None
-        ]
+        ):
+            if result is not None:
+                results.append(result)
+                # At each iteration, dump the results to the file system
+                joblib.dump(results, f".joblib/partial_cv_{self.model_name}")
 
         if kind == "prediction":
             results.sort(key=lambda x: (x[0], x[1]))
-            headers = ["MAE", "RMSE", "Hyperparameters"]
+            headers = self.prediction_metrics + ["Hyperparameters"]
         else:
             results.sort(key=lambda x: x[5], reverse=True)
-            headers = [
-                "Precision",
-                "Precision@k",
-                "Recall",
-                "Recall@k",
-                "F1",
-                "F1@k",
-                "ARHR",
-                "NDCG",
-                "Hyperparameters",
-            ]
+            headers = self.top_n_metrics + ["Hyperparameters"]
         results = results[:5]
 
         print(f"\n{self.model_name} CV results:")
@@ -231,3 +221,50 @@ class Recommender_System(ABC):
                 stralign="center",
             )
         )
+
+    # def gridsearch_cv(
+    #     self,
+    #     kind: Literal["prediction", "top_n"],
+    #     params_space: Dict[str, list] | Dict[str, NDArray],
+    # ):
+    #     combinations = generate_combinations(params_space)
+    #     results = [
+    #         result
+    #         for result in Parallel(n_jobs=-1, backend="loky")(
+    #             delayed(self._do_cv)(kind, **args)
+    #             for args in tqdm(
+    #                 combinations, desc="Grid search in progress..", leave=False
+    #             )
+    #         )
+    #         if result is not None
+    #     ]
+
+    #     if kind == "prediction":
+    #         results.sort(key=lambda x: (x[0], x[1]))
+    #         headers = ["MAE", "RMSE", "Hyperparameters"]
+    #     else:
+    #         results.sort(key=lambda x: x[5], reverse=True)
+    #         headers = [
+    #             "Precision",
+    #             "Precision@k",
+    #             "Recall",
+    #             "Recall@k",
+    #             "F1",
+    #             "F1@k",
+    #             "ARHR",
+    #             "NDCG",
+    #             "Hyperparameters",
+    #         ]
+    #     results = results[:5]
+
+    #     print(f"\n{self.model_name} CV results:")
+    #     print(
+    #         tabulate(
+    #             results,
+    #             headers=headers,
+    #             tablefmt="grid",
+    #             floatfmt=".4f",
+    #             numalign="center",
+    #             stralign="center",
+    #         )
+    #     )

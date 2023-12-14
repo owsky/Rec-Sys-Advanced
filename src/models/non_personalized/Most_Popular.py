@@ -1,6 +1,5 @@
 import numpy as np
 from data import Data
-from typing_extensions import Self
 from .Non_Personalized_Base import Non_Personalized_Base
 from scipy.sparse import csr_array
 
@@ -9,7 +8,7 @@ class Most_Popular(Non_Personalized_Base):
     def __init__(self, data: Data):
         super().__init__(data, "Most Popular")
 
-    def fit(self, silent=False) -> Self:
+    def fit(self, silent=False):
         if not silent:
             print("Fitting Most Popular model")
         self.is_fit = True

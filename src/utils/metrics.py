@@ -1,4 +1,3 @@
-from re import L
 import numpy as np
 from numpy.typing import NDArray
 from sklearn.metrics import ndcg_score

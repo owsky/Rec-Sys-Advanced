@@ -4,15 +4,26 @@ import numpy as np
 from numpy.typing import NDArray
 from tqdm import tqdm
 from scipy.stats import pearsonr
+from data import Data
 from ..CF_Base import CF_Base
-from typing_extensions import Self
 
 
 class Neighborhood_Base(CF_Base):
     kind: Literal["user", "item"]
     similarity: Literal["pearson", "cosine"]
 
-    def fit(self) -> Self:
+    def __init__(
+        self,
+        data: Data,
+        model_name: str,
+        kind: Literal["user", "item"],
+        similarity: Literal["pearson", "cosine"],
+    ):
+        super().__init__(data, model_name)
+        self.kind = kind
+        self.similarity = similarity
+
+    def fit(self, silent=False):
         """
         Compute the similarity matrix for the input data using either Pearson Correlation
         or Adjusted Cosine Similarity. Parameter kind determines whether user-user or item-item strategy
@@ -42,6 +53,8 @@ class Neighborhood_Base(CF_Base):
                 + "-based similarities using "
                 + self.similarity,
                 leave=False,
+                disable=silent,
+                dynamic_ncols=True,
             )
         )
 
@@ -145,22 +158,6 @@ class Neighborhood_Base(CF_Base):
             return 0.0
 
         return num / den
-
-    def top_n(self, user_index: int, n=10):
-        if not self.is_fit:
-            raise RuntimeError("Model untrained, fit first")
-        ratings = self.data.interactions_train_numpy[user_index]
-        unrated_indices = np.flatnonzero(ratings == 0)
-        predictions = [
-            (item_index, self.predict(user_index, item_index))
-            for item_index in unrated_indices
-        ]
-        predictions = [x for x in predictions if x[1] is not None]
-        predictions = [
-            self.data.item_index_to_id[x[0]]
-            for x in sorted(predictions, key=lambda x: x[1], reverse=True)
-        ]
-        return predictions[:n]
 
     def gridsearch_cv(self):
         raise RuntimeError(

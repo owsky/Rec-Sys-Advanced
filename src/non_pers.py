@@ -3,8 +3,8 @@ from models.non_personalized import Highest_Rated, Most_Popular
 
 
 def non_pers(data: Data):
-    # hr_model = Highest_Rated(data).fit()
-    # hr_model.pretty_print_accuracy_top_n()
+    hr_model = Highest_Rated(data).fit()
+    hr_model.pretty_print_accuracy_top_n()
 
     mp_model = Most_Popular(data).fit()
     mp_model.pretty_print_accuracy_top_n()

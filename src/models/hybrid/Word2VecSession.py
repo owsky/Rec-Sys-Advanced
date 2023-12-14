@@ -6,6 +6,10 @@ import numpy as np
 
 
 class Word2VecSession(Recommender_System):
+    """
+    Word2Vec recommender system which learns similarity through user sessions
+    """
+
     def __init__(self, data: Data):
         super().__init__(data, "Word2Vec Session")
 
@@ -18,11 +22,6 @@ class Word2VecSession(Recommender_System):
         return self
 
     def _train_word2vec_model(self, vector_size: int, window: int, biased: bool):
-        # corpus = []
-        # for user_ratings in self.data.interactions_train_numpy:
-        #     liked = [str(x) for x in np.flatnonzero(user_ratings >= 3)]
-        #     corpus.append(liked)
-
         n_users = self.data.interactions_train.shape[0]
         corpus = [self._get_str_liked(user_index) for user_index in range(n_users)]
 
@@ -59,9 +58,6 @@ class Word2VecSession(Recommender_System):
             return []
         return np.mean(product_vec, axis=0)
 
-    def predict(self):
-        return super().predict()
-
     def top_n(self, user_index: int, n: int) -> list[int] | NDArray[np.int64]:
         liked = self._get_str_liked(user_index)
         v = self.aggregate_vectors(liked)
@@ -74,5 +70,8 @@ class Word2VecSession(Recommender_System):
         liked = self.data.get_liked_movies_indices(user_id, self.is_biased, "train")
         return [str(x) for x in liked]
 
-    def _predict_all(self) -> list[tuple[int, int, int, float | None]]:
-        return super()._predict_all()
+    def predict(self):
+        raise RuntimeError(f"Model {self.__class__.__name__} cannot predict ratings")
+
+    def _predict_all(self):
+        raise RuntimeError(f"Model {self.__class__.__name__} cannot predict ratings")

@@ -3,7 +3,7 @@ import numpy as np
 from data import Data
 from ..MF_Base import MF_Base
 from utils import RandomSingleton
-from typing_extensions import Self
+from tqdm import tqdm
 
 
 class ALS(MF_Base):
@@ -14,9 +14,7 @@ class ALS(MF_Base):
     def __init__(self, data: Data):
         super().__init__(data, "Alternating Least Squares")
 
-    def fit(self, silent=False, n_factors=10, epochs=10, reg=0.01) -> Self:
-        if not silent:
-            print("Fitting the sequential Alternating Least Squares model...")
+    def fit(self, n_factors=10, epochs=10, reg=0.01, silent=False):
         self.is_fit = True
         n_users, n_items = self.data.interactions_train.shape
 
@@ -26,7 +24,13 @@ class ALS(MF_Base):
         self.Q = RandomSingleton.get_random_normal(
             loc=0, scale=0.1, size=(n_items, n_factors)
         )
-        for _ in range(epochs):
+        for _ in tqdm(
+            range(epochs),
+            desc="Fitting the ALS model...",
+            leave=False,
+            disable=silent,
+            dynamic_ncols=True,
+        ):
             # Fix item factors and update user factors
             for u in range(n_users):
                 # Select the items rated by user u

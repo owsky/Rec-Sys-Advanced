@@ -10,7 +10,7 @@ from utils import exponential_decay
 class Data:
     """
     Data class that wraps the ratings and item features and provides a single source of truth
-    alongside useful methods for transforming the data
+    alongside useful methods
     """
 
     def __init__(
@@ -25,25 +25,29 @@ class Data:
         print("Datasets loaded correctly")
 
     def _compute_average_ratings(
-        self, coo_array: coo_array
+        self, ratings: coo_array
     ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
-        num_rows = coo_array.shape[0]
-        num_cols = coo_array.shape[1]
+        """
+        Compute for each user and item the average non-zero rating
+        """
+        n_rows, n_cols = ratings.shape
 
-        row_sum_array = np.zeros(num_rows)
-        row_count_array = np.zeros(num_rows)
+        row_sum_array = np.zeros(n_rows)
+        row_count_array = np.zeros(n_rows)
 
-        col_sum_array = np.zeros(num_cols)
-        col_count_array = np.zeros(num_cols)
+        col_sum_array = np.zeros(n_cols)
+        col_count_array = np.zeros(n_cols)
 
-        for row, col, value in zip(coo_array.row, coo_array.col, coo_array.data):
-            row_sum_array[row] += value
-            if value != 0:
-                row_count_array[row] += 1
+        for user_index, item_index, rating in zip(
+            ratings.row, ratings.col, ratings.data
+        ):
+            row_sum_array[user_index] += rating
+            if rating != 0:
+                row_count_array[user_index] += 1
 
-            col_sum_array[col] += value
-            if value != 0:
-                col_count_array[col] += 1
+            col_sum_array[item_index] += rating
+            if rating != 0:
+                col_count_array[item_index] += 1
 
         # Avoid division by zero
         row_count_array[row_count_array == 0] = 1
@@ -54,9 +58,15 @@ class Data:
 
         return row_averages, col_averages
 
-    def _create_ratings_matrix(
+    def _create_interactions(
         self, ratings: DataFrame, shape: tuple[int, int], test_size: float
     ):
+        """
+        Given the ratings dataframe, the correct shape and the test size, compute
+        the interactions matrices for both train and test.
+        Also create dataframes for the split data and dictionaries which convert
+        from ids to indices and vice versa.
+        """
         data_train = []
         row_indices_train = []
         col_indices_train = []
@@ -70,6 +80,29 @@ class Data:
 
         self.ratings_train_df = pd.DataFrame()
         self.ratings_test_df = pd.DataFrame()
+
+        def t(df: DataFrame, kind: Literal["train", "test"]):
+            nonlocal new_user_index
+            for _, row in df.iterrows():
+                movie_id, r = row["movieId"], row["rating"]
+
+                if user_id in self.user_id_to_index:
+                    user_index = self.user_id_to_index[user_id]
+                else:
+                    user_index = new_user_index
+                    self.user_id_to_index[user_id] = user_index
+                    self.user_index_to_id[user_index] = user_id
+                    new_user_index += 1
+
+                item_index = self.item_id_to_index[movie_id]
+                if kind == "train":
+                    data_train.append(r)
+                    row_indices_train.append(user_index)
+                    col_indices_train.append(item_index)
+                else:
+                    data_test.append(r)
+                    row_indices_test.append(user_index)
+                    col_indices_test.append(item_index)
 
         for user_id in ratings["userId"].unique():
             user_df = ratings[ratings["userId"] == user_id]
@@ -138,7 +171,7 @@ class Data:
         df.sort_values(by="timestamp", inplace=True)
         shape = (df["userId"].nunique(), self.how_many_unique_movie_ids)
 
-        self.interactions_train, self.interactions_test = self._create_ratings_matrix(
+        self.interactions_train, self.interactions_test = self._create_interactions(
             df, shape, test_size
         )
         self.interactions_train_numpy = self.interactions_train.toarray()

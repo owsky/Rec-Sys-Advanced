@@ -8,12 +8,9 @@ class User_Based(Neighborhood_Base):
     def __init__(
         self,
         data: Data,
-        kind: Literal["user", "item"],
         similarity: Literal["pearson", "cosine"],
     ):
-        super().__init__(data, "User-based Neighborhood Filtering")
-        self.kind = kind
-        self.similarity = similarity
+        super().__init__(data, "User-based Neighborhood Filtering", "user", similarity)
 
     def predict(self, u: int, i: int, k=50, support=3):
         # Extract the top k neighbors of the user u who have rated the item i
@@ -43,3 +40,6 @@ class User_Based(Neighborhood_Base):
         # Avoid division by zero
         if den != 0:
             return bias_u + float(num) / float(den)
+
+    def top_n(self, user_index: int, n: int) -> list[int]:
+        raise RuntimeError("Not implemented")

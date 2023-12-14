@@ -1,11 +1,12 @@
 from typing import Iterable, Literal
+from tqdm import tqdm
+import pyspark
 from data import Data
 from ..MF_Base import MF_Base
 import numpy as np
 from pyspark import RDD, Accumulator, AccumulatorParam, SparkContext, SparkConf
 from utils import RandomSingleton
 from numpy.typing import NDArray
-from typing_extensions import Self
 
 
 class ALS_MR(MF_Base):
@@ -16,7 +17,7 @@ class ALS_MR(MF_Base):
     def __init__(self, data: Data):
         super().__init__(data, "Alternating Least Squares")
 
-    def fit(self, silent=False, n_factors=10, epochs=10, reg=0.01) -> Self:
+    def fit(self, silent=False, n_factors=10, epochs=10, reg=0.01):
         class DictAccumulator(AccumulatorParam):
             """
             Custom dictionary accumulator, needed to propagate the factors updates across the cluster
@@ -40,8 +41,6 @@ class ALS_MR(MF_Base):
                     currDict.update({key: value})
                 return currDict
 
-        if not silent:
-            print("Fitting the Map Reduce Alternating Least Squares model...")
         self.is_fit = True
 
         # Spark initialization
@@ -65,7 +64,7 @@ class ALS_MR(MF_Base):
                     self.data.interactions_train.data,
                 )
             )
-        ).cache()
+        ).persist(storageLevel=pyspark.StorageLevel.MEMORY_AND_DISK_DESER)
 
         # Initialize the factors' dictionaries
         P_shape = (n_users, n_factors)
@@ -101,14 +100,11 @@ class ALS_MR(MF_Base):
             """
             nonlocal P_acc, Q_acc
             r = np.array([x[2] for x in r_iter])
-            nz = np.nonzero(r)
+            nz = [x[1] for x in r_iter] if kind == "user" else [x[0] for x in r_iter]
 
-            new_factor = (
-                r[nz]
-                @ fixed_factor[nz]
-                @ np.linalg.inv(
-                    fixed_factor[nz].T @ fixed_factor[nz] + reg * np.eye(n_factors)
-                )
+            new_factor = np.linalg.solve(
+                (fixed_factor[nz, :].T @ fixed_factor[nz, :]) + reg * np.eye(n_factors),
+                (fixed_factor[nz, :].T @ r),
             )
 
             if kind == "user":
@@ -116,7 +112,13 @@ class ALS_MR(MF_Base):
             else:
                 Q_acc.add({index: new_factor})
 
-        for _ in range(epochs):
+        for _ in tqdm(
+            range(epochs),
+            desc="Fitting the MR ALS model...",
+            leave=False,
+            disable=silent,
+            dynamic_ncols=True,
+        ):
             # Fix items factors and update users factors
             Q = dictAccToArr(Q_acc, Q_shape)
             ratings_RDD.groupBy(lambda x: x[0]).foreach(
@@ -134,5 +136,6 @@ class ALS_MR(MF_Base):
         self.Q = dictAccToArr(Q_acc, Q_shape)
 
         # Stop the Spark application
+        ratings_RDD.unpersist()
         spark.stop()
         return self

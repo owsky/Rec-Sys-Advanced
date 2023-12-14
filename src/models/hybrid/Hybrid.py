@@ -1,4 +1,3 @@
-from typing_extensions import Self
 import numpy as np
 from numpy.typing import NDArray
 from data import Data
@@ -58,9 +57,7 @@ class Hybrid(Recommender_System):
 
         return np.array(combined_features)
 
-    def fit(
-        self, by_timestamp: bool, is_biased: bool, like_perc: float, silent=False
-    ) -> Self:
+    def fit(self, by_timestamp: bool, is_biased: bool, like_perc: float, silent=False):
         """
         Fit the Tfid and NearestNeighbors models, then create the user profiles
         """
@@ -87,6 +84,7 @@ class Hybrid(Recommender_System):
                     desc="Fitting the Hybrid model...",
                     leave=False,
                     disable=silent,
+                    dynamic_ncols=True,
                 )
             )
             if result is not None

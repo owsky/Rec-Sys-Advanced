@@ -1,4 +1,3 @@
-from typing_extensions import Self
 import numpy as np
 from data import Data
 from .Non_Personalized_Base import Non_Personalized_Base
@@ -8,7 +7,7 @@ class Highest_Rated(Non_Personalized_Base):
     def __init__(self, data: Data):
         super().__init__(data, "Highest Rated")
 
-    def fit(self, silent=False) -> Self:
+    def fit(self, silent=False):
         self.is_fit = True
         return self
 

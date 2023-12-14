@@ -1,4 +1,3 @@
-from gc import disable
 import numpy as np
 from numpy.typing import NDArray
 from data import Data
@@ -10,7 +9,7 @@ from tqdm import tqdm
 
 class SGD(MF_Base):
     """
-    Matrix Factorization approach for Collaborative Filtering. Uses sparse arrays and minibatch gradient descent
+    Matrix Factorization model which uses Stochastic Gradient Descent for training
     """
 
     def __init__(self, data: Data):
@@ -18,14 +17,17 @@ class SGD(MF_Base):
 
     def fit(
         self,
-        n_factors: int = 10,
-        epochs: int = 20,
-        lr: float = 0.009,
+        n_factors: int = 5,
+        epochs: int = 10,
+        lr: float = 0.011,
         reg: float = 0.002,
         batch_size: int = 8,
-        lr_decay_factor: float = 0.9,
+        lr_decay_factor: float = 0.5,
         silent=False,
     ) -> Self:
+        """
+        Mini batch SGD training algorithm
+        """
         self.is_fit = True
         self.lr = lr
         self.lr_decay_factor = lr_decay_factor
@@ -54,6 +56,7 @@ class SGD(MF_Base):
             leave=False,
             desc="Fitting the Stochastic Gradient Descent model...",
             disable=silent,
+            dynamic_ncols=True,
         ):
             self.lr *= self.lr_decay_factor
             RandomSingleton.shuffle(iterable_data)
@@ -78,6 +81,9 @@ class SGD(MF_Base):
         return self
 
     def _clip_gradients(self, gradient: NDArray[np.float64]):
+        """
+        Clip gradients in order to make sure that they don't diverge
+        """
         norm = float(np.linalg.norm(gradient))
         if norm > 1.0:
             gradient /= norm

@@ -8,14 +8,11 @@ class Item_Based(Neighborhood_Base):
     def __init__(
         self,
         data: Data,
-        kind: Literal["user", "item"],
         similarity: Literal["pearson", "cosine"],
     ):
-        super().__init__(data, "Item-based Neighborhood Filtering")
-        self.kind = kind
-        self.similarity = similarity
+        super().__init__(data, "Item-based Neighborhood Filtering", "item", similarity)
 
-    def predict(self, u: int, i: int, k=50, support=3):
+    def predict(self, u: int, i: int, k=50, support=3) -> float | None:
         # Extract the top k neighbors of the item i which have been rated by user u
         similarities = self.similarity_matrix[i, :]
         top_neighbors = np.argsort(similarities)[::-1]
@@ -43,3 +40,19 @@ class Item_Based(Neighborhood_Base):
         # Avoid division by zero
         if den != 0:
             return bias_i + float(num) / float(den)
+
+    def top_n(self, user_index: int, n=10) -> list[int]:
+        if not self.is_fit:
+            raise RuntimeError("Model untrained, fit first")
+        user_id = self.data.user_index_to_id[user_index]
+        ratings = self.data.get_user_ratings(user_id, "train")
+        unrated_indices = np.flatnonzero(ratings == 0)
+        predictions: list[tuple[int, float]] = []
+        for item_index in unrated_indices:
+            pred = self.predict(user_index, item_index)
+            if pred is not None:
+                predictions.append((item_index, pred))
+        return [
+            self.data.item_index_to_id[index]
+            for (index, _) in sorted(predictions, key=lambda x: x[1], reverse=True)
+        ][:n]

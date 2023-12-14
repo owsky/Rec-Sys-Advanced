@@ -1,44 +1,28 @@
-from abc import ABC, abstractmethod
-from typing_extensions import Self
+from abc import ABC
 import numpy as np
 from ..Recommender_System import Recommender_System
-from data import Data
 
 
 class CF_Base(Recommender_System, ABC):
-    data: Data
-    is_fit: bool
-
-    @abstractmethod
-    def fit(self) -> Self:
-        pass
-
-    @abstractmethod
-    def predict(self, u: int, i: int) -> float:
-        pass
-
     def _get_cold_start_indices(self, threshold=1):
         """
         Return the indices of the users and items in the train set with less ratings than the threshold
         """
-        if not self.is_fit:
-            raise RuntimeError("Model untrained, invoke fit before predicting")
         return (
             np.where(np.sum(self.data.interactions_train != 0, axis=1) < threshold)[0],
             np.where(np.sum(self.data.interactions_train != 0, axis=0) < threshold)[0],
         )
 
-    def _predict_all(self):
+    def _predict_all(self) -> list[tuple[int, int, float, float]]:
         """
-        Given a test set, compute the predictions for all the non-zero ratings
+        Compute the predictions for all the non-zero ratings
         """
         test_set = self.data.interactions_test
-        predictions: list[tuple[int, int, int, float | None]] = []
-        for r, u, i in zip(test_set.data, test_set.row, test_set.col):
-            predictions.append((u, i, r, self.predict(u, i)))
         cold_users, cold_items = self._get_cold_start_indices()
-        for j, prediction in enumerate(predictions):
-            u, i, y_true, _ = prediction
-            if u in cold_users or i in cold_items:
-                predictions[j] = (u, i, y_true, None)
+        y = zip(test_set.data, test_set.row, test_set.col)
+        predictions = [
+            (u, i, r, self.predict(u, i))
+            for r, u, i in y
+            if u not in cold_users and i not in cold_items
+        ]
         return predictions
