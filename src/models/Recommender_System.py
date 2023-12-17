@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 import math
 import os
-from typing import Callable, Dict, Literal
+from typing import Callable, Literal
 import joblib
 import numpy as np
 from numpy.typing import NDArray
@@ -17,6 +17,7 @@ from utils import (
     normalized_discounted_cumulative_gain,
     generate_combinations,
     batch_generator,
+    dict_to_hash,
 )
 from tabulate import tabulate
 from joblib import Parallel, delayed
@@ -176,60 +177,87 @@ class Recommender_System(ABC):
     def gridsearch_cv(
         self,
         kind: Literal["prediction", "top_n"],
-        params_space: Dict[str, list] | Dict[str, NDArray],
-        restart=True,
+        params_space: dict[str, list[int | float] | NDArray[np.int64 | np.float64]],
     ):
         """
-        Perform the grid search cross validation for the model
+        Perform the grid search cross validation for the model with the given params space
         """
-        combinations = generate_combinations(params_space)
-        results = []
 
+        # Obtain the combinations of hyperparameters from the params space and the total number of combinations
+        combinations, total = generate_combinations(params_space)
+
+        # Split the combinations generator into a generator of batches, where each batch contains 10% of the data
+        batch_size = total // 10 + 1
+        batches = batch_generator(combinations, batch_size)
+
+        # Compute the model's partial CV file name from the model's name and the hash string of the params space
         cv_path = os.path.join(
-            ".joblib", f"partial_cv_{self.model_name.replace(' ', '_').lower()}.job"
+            ".joblib",
+            f"partial_cv_{self.model_name.replace(' ', '_').lower()}_{dict_to_hash(params_space)}.job",
         )
+
         # Check if a partial CV exists for the current model
         try:
             if not os.path.exists(".joblib"):
                 os.mkdir(".joblib")
-            if restart:
-                raise FileNotFoundError()
-            resume_batch, batch_size, results = joblib.load(cv_path)
+            # Load the partial CV and the last processed batch
+            resume_batch, results = joblib.load(cv_path)
+
+            # Compute the next batch to process and the number of items already processed
+            start = resume_batch + 1
+            initial = resume_batch * batch_size
+
+            # Consume the already processed batches from the generator in order to resume
+            for _ in range(resume_batch):
+                next(batches)
+            print(f"Resuming crossvalidation at {resume_batch * 10} %")
         except FileNotFoundError:
-            resume_batch = -1
+            # If no valid partial CV is found, start from scratch
+            resume_batch = 1
+            start = resume_batch
+            initial = 0
+            results = []
 
-        batch_size = 120
+        # Manual controls for updating correctly the CV progress
+        with tqdm(dynamic_ncols=True, total=total, initial=initial) as pbar:
+            # Custom joblib callback that updates the progress bar
+            class MyCallback(joblib.parallel.BatchCompletionCallBack):
+                def __call__(self, *args, **kwargs):
+                    pbar.update(n=self.batch_size)
+                    return super().__call__(*args, **kwargs)
 
-        for i_batch, combinations_batch in enumerate(
-            tqdm(
-                batch_generator(combinations, batch_size),
-                desc="Grid search in progress..",
-                leave=False,
-                dynamic_ncols=True,
-            )
-        ):
-            if i_batch <= resume_batch:
-                continue
-            for result in Parallel(n_jobs=-1, backend="loky")(
-                delayed(self._do_cv)(kind, **args) for args in combinations_batch
-            ):
-                if result is not None:
-                    results.append(result)
-                    # After processing a batch, dump the results to the file system
-                    joblib.dump((i_batch, batch_size, results), cv_path)
+            # Back the old callback up and replace it with the custom one
+            old_cb = joblib.parallel.BatchCompletionCallBack
+            joblib.parallel.BatchCompletionCallBack = MyCallback
 
+            # Iterate over the batches
+            for i, batch in enumerate(batches, start=start):
+                # Compute the crossvalidation for the current batch
+                for result in Parallel(n_jobs=-1, backend="loky")(
+                    delayed(self._do_cv)(kind, **comb) for comb in batch
+                ):
+                    # Add the results to the global results list
+                    if result is not None:
+                        results.append(result)
+                # Dump the partial CV to file system after the batch has been processed
+                joblib.dump((i, results), cv_path)
+
+        # Restore the original joblib callback
+        joblib.parallel.BatchCompletionCallBack = old_cb
+
+        # Sort the results according to the task to optimize
         if kind == "prediction":
             results.sort(key=lambda x: (x[0], x[1]))
             headers = self.prediction_metrics + ["Hyperparameters"]
         else:
             results.sort(key=lambda x: x[5], reverse=True)
             headers = self.top_n_metrics + ["Hyperparameters"]
-        results = results[:5]
 
+        # Show the best five results
         print(f"\n{self.model_name} CV results:")
         print(
             tabulate(
-                results,
+                results[:5],
                 headers=headers,
                 tablefmt="grid",
                 floatfmt=".4f",

@@ -14,3 +14,5 @@ from .metrics import (
 from .exponential_decay import exponential_decay
 from .generate_combinations import generate_combinations
 from .batch_generator import batch_generator
+from .dict_to_hash import dict_to_hash
+from .exp_range import exp_range
