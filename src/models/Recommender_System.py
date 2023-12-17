@@ -16,6 +16,7 @@ from utils import (
     average_reciprocal_hit_rank,
     normalized_discounted_cumulative_gain,
     generate_combinations,
+    batch_generator,
 )
 from tabulate import tabulate
 from joblib import Parallel, delayed
@@ -176,6 +177,7 @@ class Recommender_System(ABC):
         self,
         kind: Literal["prediction", "top_n"],
         params_space: Dict[str, list] | Dict[str, NDArray],
+        restart=True,
     ):
         """
         Perform the grid search cross validation for the model
@@ -183,24 +185,38 @@ class Recommender_System(ABC):
         combinations = generate_combinations(params_space)
         results = []
 
+        cv_path = os.path.join(
+            ".joblib", f"partial_cv_{self.model_name.replace(' ', '_').lower()}.job"
+        )
         # Check if a partial CV exists for the current model
         try:
             if not os.path.exists(".joblib"):
                 os.mkdir(".joblib")
-            results = joblib.load(f".joblib/partial_cv_{self.model_name}")
+            if restart:
+                raise FileNotFoundError()
+            resume_batch, batch_size, results = joblib.load(cv_path)
         except FileNotFoundError:
-            pass
+            resume_batch = -1
 
-        for result in Parallel(n_jobs=-1, backend="loky")(
-            delayed(self._do_cv)(kind, **args)
-            for args in tqdm(
-                combinations, desc="Grid search in progress..", leave=False
+        batch_size = 120
+
+        for i_batch, combinations_batch in enumerate(
+            tqdm(
+                batch_generator(combinations, batch_size),
+                desc="Grid search in progress..",
+                leave=False,
+                dynamic_ncols=True,
             )
         ):
-            if result is not None:
-                results.append(result)
-                # At each iteration, dump the results to the file system
-                joblib.dump(results, f".joblib/partial_cv_{self.model_name}")
+            if i_batch <= resume_batch:
+                continue
+            for result in Parallel(n_jobs=-1, backend="loky")(
+                delayed(self._do_cv)(kind, **args) for args in combinations_batch
+            ):
+                if result is not None:
+                    results.append(result)
+                    # After processing a batch, dump the results to the file system
+                    joblib.dump((i_batch, batch_size, results), cv_path)
 
         if kind == "prediction":
             results.sort(key=lambda x: (x[0], x[1]))
@@ -221,50 +237,3 @@ class Recommender_System(ABC):
                 stralign="center",
             )
         )
-
-    # def gridsearch_cv(
-    #     self,
-    #     kind: Literal["prediction", "top_n"],
-    #     params_space: Dict[str, list] | Dict[str, NDArray],
-    # ):
-    #     combinations = generate_combinations(params_space)
-    #     results = [
-    #         result
-    #         for result in Parallel(n_jobs=-1, backend="loky")(
-    #             delayed(self._do_cv)(kind, **args)
-    #             for args in tqdm(
-    #                 combinations, desc="Grid search in progress..", leave=False
-    #             )
-    #         )
-    #         if result is not None
-    #     ]
-
-    #     if kind == "prediction":
-    #         results.sort(key=lambda x: (x[0], x[1]))
-    #         headers = ["MAE", "RMSE", "Hyperparameters"]
-    #     else:
-    #         results.sort(key=lambda x: x[5], reverse=True)
-    #         headers = [
-    #             "Precision",
-    #             "Precision@k",
-    #             "Recall",
-    #             "Recall@k",
-    #             "F1",
-    #             "F1@k",
-    #             "ARHR",
-    #             "NDCG",
-    #             "Hyperparameters",
-    #         ]
-    #     results = results[:5]
-
-    #     print(f"\n{self.model_name} CV results:")
-    #     print(
-    #         tabulate(
-    #             results,
-    #             headers=headers,
-    #             tablefmt="grid",
-    #             floatfmt=".4f",
-    #             numalign="center",
-    #             stralign="center",
-    #         )
-    #     )

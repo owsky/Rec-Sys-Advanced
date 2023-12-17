@@ -11,11 +11,11 @@ RandomSingleton.initialize(seed=42)
 
 def main():
     data = Data(data_path="dataset/preprocessed/", ratings_test_size=0.3)
-    # cv(data)
+    cv(data)
     # cf(data)
     # non_pers(data)
     # cb(data)
-    hb(data)
+    # hb(data)
 
 
 if __name__ == "__main__":

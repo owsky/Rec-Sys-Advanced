@@ -7,7 +7,7 @@ def cv(data: Data):
     sgd_params_space = {
         "n_factors": [5, 10, 15, 20, 50, 100],
         "epochs": [5, 10, 20, 30],
-        "lr": np.arange(0.001, 0.3, 0.01),
+        "lr": np.arange(0.001, 0.1, 0.01),
         "reg": np.arange(0.001, 0.003, 0.001),
         "batch_size": [1, 4, 8, 16],
         "lr_decay_factor": [0.5, 0.8, 0.9, 0.99],
