@@ -40,8 +40,8 @@ class Recommender_System(ABC):
         "Recall@k",
         "F1",
         "F1@k",
-        "Average Reciprocal Hit Rank",
-        "Normalized Discounted Cumulative Gain",
+        "ARHR",
+        "NDCG",
     ]
 
     def __init__(self, data: Data, model_name: str):
@@ -219,7 +219,12 @@ class Recommender_System(ABC):
             results = []
 
         # Manual controls for updating correctly the CV progress
-        with tqdm(dynamic_ncols=True, total=total, initial=initial) as pbar:
+        with tqdm(
+            dynamic_ncols=True,
+            desc="Crossvalidation in progress...",
+            total=total,
+            initial=initial,
+        ) as pbar:
             # Custom joblib callback that updates the progress bar
             class MyCallback(joblib.parallel.BatchCompletionCallBack):
                 def __call__(self, *args, **kwargs):
