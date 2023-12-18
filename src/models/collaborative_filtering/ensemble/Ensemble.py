@@ -1,4 +1,3 @@
-from numpy import int64
 from numpy.typing import NDArray
 from data import Data
 from ..matrix_factorization import ALS, SGD
@@ -41,7 +40,7 @@ class Ensemble(CF_Base):
             predictions.append(nn_prediction)
         return float(np.mean(predictions))
 
-    def top_n(self, user_index: int, n: int) -> list[int] | NDArray[int64]:
+    def top_n(self, user_index: int, n: int) -> list[int] | NDArray[np.int64]:
         if not self.is_fit:
             raise RuntimeError("Untrained model, invoke fit before predicting")
         sgd_recs = self.sgd_model.top_n(user_index, n)

@@ -82,6 +82,11 @@ class Data:
         self.ratings_test_df = pd.DataFrame()
 
         def process_user(df: DataFrame, kind: Literal["train", "test"]):
+            """
+            Given a dataframe containing a single user's collection of ratings,
+            iterate through all of them, update the dictionaries and add the data
+            to the correct lists
+            """
             nonlocal new_user_index
             for _, row in df.iterrows():
                 movie_id, r = row["movieId"], row["rating"]
@@ -141,6 +146,8 @@ class Data:
         )
         df["timestamp"] = pd.to_datetime(df["timestamp"], unit="s")
         df.sort_values(by="timestamp", inplace=True)
+
+        # shape of the interactions matrix (n_unique_users, n_unique_movies)
         shape = (df["userId"].nunique(), self.how_many_unique_movie_ids)
 
         self.interactions_train, self.interactions_test = self._create_interactions(
@@ -155,30 +162,12 @@ class Data:
 
         return self.interactions_train, self.interactions_test
 
-    def id_to_index(self, id: int, kind: Literal["user", "item"]) -> int:
-        """
-        Convert an ID to an index of the user-item matrix
-        """
-        if kind == "user":
-            return self.user_id_to_index[id]
-        else:
-            return self.item_id_to_index[id]
-
-    def index_to_id(self, index: int, kind: Literal["user", "item"]) -> int:
-        """
-        Convert an index of the user-item matrix to an ID
-        """
-        if kind == "user":
-            return self.user_index_to_id[index]
-        else:
-            return self.item_index_to_id[index]
-
     def _load_movies(self) -> None:
         """
-        Load the movies information as DataFrame
+        Load the movies information as DataFrame alongside the tags
         """
         movies_df = pd.read_csv(
-            self.data_path + "movies.csv",  # "movies_filtered.csv",
+            self.data_path + "movies.csv",
             dtype={"movieId": int, "title": str, "genres": str},
         )
 
@@ -233,17 +222,23 @@ class Data:
         Given a movie index, return the movie information
         """
         return self.get_movies_from_ids(
-            [self.index_to_id(i, "item") for i in movie_indices]
+            [self.item_index_to_id[i] for i in movie_indices]
         )
 
     def get_user_ratings(
         self, user_id: int, dataset: Literal["train", "test"]
-    ) -> NDArray:
+    ) -> NDArray[np.float64]:
+        """
+        Return the given user's ratings
+        """
         user_index = self.user_id_to_index[user_id]
         arr = self.interactions_train if dataset == "train" else self.interactions_test
         return csr_array(arr.getrow(user_index)).toarray()[0]
 
-    def get_weighed_user_ratings(self, user_id: int):
+    def get_weighed_user_ratings(self, user_id: int) -> list[tuple[int, float, float]]:
+        """
+        Return the given user's ratings alongside a weight computed from the age of the rating
+        """
         user_df = self.ratings_train_df[self.ratings_train_df["userId"] == user_id]
         timestamps = user_df["timestamp"]
         try:
@@ -251,7 +246,7 @@ class Data:
         except ValueError:
             return []
         weights = [exponential_decay(timestamp, base_time) for timestamp in timestamps]
-        ratings: list[tuple[int, float]] = list(
+        ratings = list(
             user_df[["movieId", "rating"]].itertuples(index=False, name=None)
         )
         return [(tup[0], tup[1], weight) for tup, weight in zip(ratings, weights)]
@@ -259,6 +254,9 @@ class Data:
     def get_liked_movies_indices(
         self, user_id: int, biased: bool, dataset: Literal["train", "test"]
     ) -> list[int]:
+        """
+        Return the indices of movies liked by a given user
+        """
         user_ratings = self.get_user_ratings(user_id, dataset)
         nz = user_ratings.nonzero()
         if len(user_ratings[nz]) == 0:
@@ -277,6 +275,9 @@ class Data:
         return sorted(liked_indices, key=lambda x: user_ratings[x], reverse=True)
 
     def get_user_bias(self, user_id: int):
+        """
+        Compute a given user's rating bias
+        """
         user_index = self.user_id_to_index[user_id]
         user_ratings = self.get_user_ratings(user_id, "train")
         if np.count_nonzero(user_ratings) == 0:
@@ -288,6 +289,9 @@ class Data:
         return user_bias
 
     def get_weighed_liked_movie_indices(self, user_id: int, biased: bool):
+        """
+        Return the indices of movies liked by a given user, weighed by the age of the rating
+        """
         user_ratings = self.get_weighed_user_ratings(user_id)
         if len(user_ratings) == 0:
             return []
@@ -307,5 +311,8 @@ class Data:
         return user_likes
 
     def get_ratings_count(self, user_id: int):
+        """
+        Compute how many ratings a given user has provided
+        """
         ratings = self.get_user_ratings(user_id, "train")
         return np.count_nonzero(ratings)

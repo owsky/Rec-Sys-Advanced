@@ -1,4 +1,3 @@
-from typing_extensions import Self
 import numpy as np
 from numpy.typing import NDArray
 from data import Data
@@ -83,7 +82,7 @@ class Content_Based(Recommender_System):
         """
         Given a movie index compute the respective tfidf matrix
         """
-        movie_id = self.data.index_to_id(movie_index, "item")
+        movie_id = self.data.item_index_to_id[movie_index]
         movie = self.data.get_movies_from_ids([movie_id])
 
         movie_genres = movie["genres"].values

@@ -13,8 +13,8 @@ def unzip_file(zip_file_path, extract_to_path):
 
 
 # Unzip t he ml-latest and ml-latest-small datasets
-# unzip_file(os.path.join(script_directory, "ml-latest-small.zip"), script_directory)
-# unzip_file(os.path.join(script_directory, "ml-latest.zip"), script_directory)
+unzip_file(os.path.join(script_directory, "ml-latest-small.zip"), script_directory)
+unzip_file(os.path.join(script_directory, "ml-latest.zip"), script_directory)
 
 # Helper functions for constructing the input paths
 make_path_full = lambda path: os.path.join(script_directory, "ml-latest", path)

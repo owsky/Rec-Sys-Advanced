@@ -3,7 +3,6 @@ from numpy.typing import NDArray
 from data import Data
 from ..MF_Base import MF_Base
 from utils import RandomSingleton
-from typing_extensions import Self
 from tqdm import tqdm
 
 
@@ -24,7 +23,7 @@ class SGD(MF_Base):
         batch_size: int = 8,
         lr_decay_factor: float = 0.5,
         silent=False,
-    ) -> Self:
+    ):
         """
         Mini batch SGD training algorithm
         """

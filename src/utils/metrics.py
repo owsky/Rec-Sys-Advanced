@@ -66,9 +66,6 @@ def normalized_discounted_cumulative_gain(
     relevant_items: list[int] | NDArray[np.int64],
     recommended_items: list[int] | NDArray[np.int64],
 ):
-    """
-    Compute the normalized discounted cumulative gain
-    """
     binary_relevance = [int(idx in relevant_items) for idx in recommended_items]
     ideal_relevance = sorted(binary_relevance, reverse=True)
     return ndcg_score(np.array([ideal_relevance]), np.array([binary_relevance]))
