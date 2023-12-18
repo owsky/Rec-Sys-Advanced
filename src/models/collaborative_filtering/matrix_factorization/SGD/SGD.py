@@ -3,7 +3,7 @@ from numpy.typing import NDArray
 from data import Data
 from ..MF_Base import MF_Base
 from utils import RandomSingleton
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 
 class SGD(MF_Base):
@@ -17,11 +17,11 @@ class SGD(MF_Base):
     def fit(
         self,
         n_factors: int = 5,
-        epochs: int = 10,
-        lr: float = 0.011,
-        reg: float = 0.002,
-        batch_size: int = 8,
-        lr_decay_factor: float = 0.5,
+        epochs: int = 29,
+        lr: float = 0.004641588833612777,
+        reg: float = 0.005,
+        batch_size: int = 16,
+        lr_decay_factor: float = 0.6633333333333333,
         silent=False,
     ):
         """

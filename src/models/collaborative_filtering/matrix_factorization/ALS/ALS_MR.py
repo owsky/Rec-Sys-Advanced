@@ -1,5 +1,5 @@
 from typing import Iterable, Literal
-from tqdm import tqdm
+from tqdm.auto import tqdm
 import pyspark
 from data import Data
 from ..MF_Base import MF_Base

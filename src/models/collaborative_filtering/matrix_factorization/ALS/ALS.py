@@ -3,7 +3,7 @@ import numpy as np
 from data import Data
 from ..MF_Base import MF_Base
 from utils import RandomSingleton
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 
 class ALS(MF_Base):

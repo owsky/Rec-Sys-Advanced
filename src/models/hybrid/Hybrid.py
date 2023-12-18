@@ -7,7 +7,7 @@ from scipy.sparse import csr_array, csr_matrix
 from ..Recommender_System import Recommender_System
 from utils import lists_str_join
 from joblib import Parallel, delayed
-from tqdm import tqdm
+from tqdm.auto import tqdm
 from models.non_personalized import Most_Popular
 
 

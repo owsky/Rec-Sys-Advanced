@@ -7,7 +7,7 @@ from scipy.sparse import spmatrix, csr_array
 from ..Recommender_System import Recommender_System
 from utils import lists_str_join
 from joblib import Parallel, delayed
-from tqdm import tqdm
+from tqdm.auto import tqdm
 from models.non_personalized import Highest_Rated
 
 
@@ -22,7 +22,7 @@ class Content_Based(Recommender_System):
         self.is_fit = True
         self.is_biased = biased
         self.movies = self.data.movies
-        self.np = Highest_Rated(self.data).fit(silent)
+        self.np = Highest_Rated(self.data).fit()
 
         self.vec_model = TfidfVectorizer(
             vocabulary=list(

@@ -2,7 +2,7 @@ from typing import Literal
 from joblib import Parallel, delayed
 import numpy as np
 from numpy.typing import NDArray
-from tqdm import tqdm
+from tqdm.auto import tqdm
 from scipy.stats import pearsonr
 from data import Data
 from ..CF_Base import CF_Base

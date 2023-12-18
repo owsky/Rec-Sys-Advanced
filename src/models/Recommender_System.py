@@ -5,7 +5,7 @@ from typing import Callable, Literal
 import joblib
 import numpy as np
 from numpy.typing import NDArray
-from tqdm import tqdm
+from tqdm.auto import tqdm
 from data import Data
 from utils import (
     precision,
