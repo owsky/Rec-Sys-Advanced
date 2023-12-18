@@ -262,12 +262,8 @@ class Data:
         if len(user_ratings[nz]) == 0:
             return []
         user_index = self.user_id_to_index[user_id]
-        if biased:
-            user_bias = (
-                0
-                if np.std(user_ratings[nz]) == 0
-                else self.average_user_rating[user_index]
-            )
+        if biased and np.std(user_ratings[nz]) != 0:
+            user_bias = self.average_user_rating[user_index]
             mask = user_ratings - user_bias >= 0
         else:
             mask = user_ratings >= 3

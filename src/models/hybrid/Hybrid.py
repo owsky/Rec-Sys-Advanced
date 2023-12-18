@@ -24,7 +24,6 @@ class Hybrid(Recommender_System):
                 )
             ),
             sublinear_tf=True,
-            smooth_idf=True,
         )
 
         # Build the train dataset for Nearest Neighbors

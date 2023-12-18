@@ -32,7 +32,6 @@ class Content_Based(Recommender_System):
                 )
             ),
             sublinear_tf=True,
-            smooth_idf=True,
         )
 
         # Build the train dataset for Nearest Neighbors

@@ -5,7 +5,7 @@ from .lists_str_join import lists_str_join
 from .metrics import (
     precision_at_k,
     recall_at_k,
-    average_reciprocal_hit_rank,
+    reciprocal_rank,
     normalized_discounted_cumulative_gain,
     f1_score,
     precision,

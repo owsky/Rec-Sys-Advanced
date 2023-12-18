@@ -13,7 +13,7 @@ from utils import (
     f1_score,
     precision_at_k,
     recall_at_k,
-    average_reciprocal_hit_rank,
+    reciprocal_rank,
     normalized_discounted_cumulative_gain,
     generate_combinations,
     batch_generator,
@@ -40,7 +40,7 @@ class Recommender_System(ABC):
         "Recall@k",
         "F1",
         "F1@k",
-        "ARHR",
+        "MRR",
         "NDCG",
     ]
 
@@ -93,14 +93,13 @@ class Recommender_System(ABC):
             prec_at_k = precision_at_k(relevant, recommended, n_adj)
             rec = recall(relevant, recommended)
             rec_at_k = recall_at_k(relevant, recommended, n_adj)
-            arhr = average_reciprocal_hit_rank(relevant, recommended)
+            rr = reciprocal_rank(relevant, recommended)
             f1 = f1_score(prec, rec)
             f1_at_k = f1_score(prec_at_k, rec_at_k)
             ndcg = normalized_discounted_cumulative_gain(relevant, recommended)
-            metrics.append([prec, prec_at_k, rec, rec_at_k, f1, f1_at_k, arhr, ndcg])
+            metrics.append([prec, prec_at_k, rec, rec_at_k, f1, f1_at_k, rr, ndcg])
 
-        metrics = np.mean(metrics, axis=0)
-        return tuple(metrics)
+        return tuple(np.mean(metrics, axis=0))
 
     @abstractmethod
     def _predict_all(self) -> list[tuple[int, int, int, float | None]]:
