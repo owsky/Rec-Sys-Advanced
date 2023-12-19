@@ -56,12 +56,12 @@ class Hybrid(Recommender_System):
 
         return np.array(combined_features)
 
-    def fit(self, by_timestamp: bool, is_biased: bool, like_perc: float, silent=False):
+    def fit(self, by_timestamp: bool, biased: bool, like_perc: float, silent=False):
         """
         Fit the Tfid and NearestNeighbors models, then create the user profiles
         """
         self.is_fit = True
-        self.is_biased = is_biased
+        self.is_biased = biased
         self.np = Most_Popular(self.data).fit(silent)
 
         item_features = self._extract_item_features()
@@ -76,7 +76,7 @@ class Hybrid(Recommender_System):
             result
             for result in Parallel(n_jobs=-1, backend="loky")(
                 delayed(self._create_user_profile)(
-                    user_index, by_timestamp, is_biased, like_perc
+                    user_index, by_timestamp, biased, like_perc
                 )
                 for user_index in tqdm(
                     range(n_users),

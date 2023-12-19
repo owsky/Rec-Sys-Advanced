@@ -220,7 +220,7 @@ class Recommender_System(ABC):
         # Manual controls for updating correctly the CV progress
         with tqdm(
             dynamic_ncols=True,
-            desc="Crossvalidation in progress...",
+            desc=f"Crossvalidating {self.model_name}...",
             total=total,
             initial=initial,
         ) as pbar:
