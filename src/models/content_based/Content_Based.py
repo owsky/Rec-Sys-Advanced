@@ -110,9 +110,10 @@ class Content_Based(Recommender_System):
             weights = [rating * weight for (_, rating, weight) in user_likes]
         else:
             user_ratings = self.data.get_user_ratings(user_id, "train")
-            user_likes = self.data.get_liked_movies_indices(user_id, biased, "train")[
-                :k
-            ]
+            user_likes = self.data.get_liked_movies_indices(user_id, biased, "train")
+            if len(user_likes) == 0:
+                return user_index
+            user_likes = user_likes[:k]
             movie_vectors = np.array(
                 [self._get_movie_vector(index) for index in user_likes]
             )

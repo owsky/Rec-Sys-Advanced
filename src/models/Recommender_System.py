@@ -31,6 +31,7 @@ class Recommender_System(ABC):
 
     data: Data
     is_fit: bool
+    model_name: str
     is_biased = False
     prediction_metrics = ["MAE", "RMSE"]
     top_n_metrics = [
@@ -173,10 +174,36 @@ class Recommender_System(ABC):
             metrics = self.accuracy_top_n(silent=True)
         return [*metrics, kwargs]
 
+    def pretty_print_cv_results(
+        self, kind: Literal["prediction", "top_n"], results: list
+    ):
+        # Sort the results according to the task to optimize
+        if kind == "prediction":
+            results.sort(key=lambda x: (x[0], x[1]))
+            headers = self.prediction_metrics + ["Hyperparameters"]
+        else:
+            results.sort(key=lambda x: x[5], reverse=True)
+            headers = self.top_n_metrics + ["Hyperparameters"]
+
+        # Show the best five results
+        metric = headers[0] if kind == "prediction" else headers[5]
+        print(f"\n{self.model_name} CV results sorted by {metric}:")
+        print(
+            tabulate(
+                results[:5],
+                headers=headers,
+                tablefmt="grid",
+                floatfmt=".4f",
+                numalign="center",
+                stralign="center",
+            )
+        )
+
     def gridsearch_cv(
         self,
         kind: Literal["prediction", "top_n"],
         params_space: dict[str, list[int | float] | NDArray[np.int64 | np.float64]],
+        print_results: bool,
     ):
         """
         Perform the grid search cross validation for the model with the given params space
@@ -209,11 +236,10 @@ class Recommender_System(ABC):
             # Consume the already processed batches from the generator in order to resume
             for _ in range(resume_batch):
                 next(batches)
-            print(f"Resuming crossvalidation at {resume_batch * 10} %")
+            print(f"Resuming crossvalidation at {resume_batch * 10}%")
         except FileNotFoundError:
             # If no valid partial CV is found, start from scratch
-            resume_batch = 1
-            start = resume_batch
+            start = 1
             initial = 0
             results = []
 
@@ -241,7 +267,11 @@ class Recommender_System(ABC):
                     delayed(self._do_cv)(kind, **comb) for comb in batch
                 ):
                     # Add the results to the global results list
-                    if result is not None:
+                    if result is None:
+                        raise RuntimeError(
+                            f"An error occurred while processing batch {i}"
+                        )
+                    else:
                         results.append(result)
                 # Dump the partial CV to file system after the batch has been processed
                 joblib.dump((i, results), cv_path)
@@ -249,23 +279,7 @@ class Recommender_System(ABC):
         # Restore the original joblib callback
         joblib.parallel.BatchCompletionCallBack = old_cb
 
-        # Sort the results according to the task to optimize
-        if kind == "prediction":
-            results.sort(key=lambda x: (x[0], x[1]))
-            headers = self.prediction_metrics + ["Hyperparameters"]
-        else:
-            results.sort(key=lambda x: x[5], reverse=True)
-            headers = self.top_n_metrics + ["Hyperparameters"]
+        if print_results:
+            self.pretty_print_cv_results(kind, results)
 
-        # Show the best five results
-        print(f"\n{self.model_name} CV results:")
-        print(
-            tabulate(
-                results[:5],
-                headers=headers,
-                tablefmt="grid",
-                floatfmt=".4f",
-                numalign="center",
-                stralign="center",
-            )
-        )
+        return results

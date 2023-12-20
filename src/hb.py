@@ -8,7 +8,7 @@ def hb(data: Data):
     # Hybrid(data).fit(False, True, 0.4).pretty_print_accuracy_top_n()
     # Hybrid(data).fit(True, True, 0.4).pretty_print_accuracy_top_n()
     # Hybrid(data).fit(False, False, 1.0).pretty_print_accuracy_top_n()
-    Hybrid(data).fit(False, True, 1.0).pretty_print_accuracy_top_n()
+    Hybrid(data).fit(False, False, 0.77).pretty_print_accuracy_top_n()
     # Hybrid(data).fit(True, False, 1.0).pretty_print_accuracy_top_n()
     # model = Hybrid(data).fit(False, False, 0.4)
     # model = Hybrid(data).fit(True, True, 1.0)

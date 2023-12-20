@@ -110,7 +110,10 @@ class Hybrid(Recommender_System):
             user_ratings = self.data.get_weighed_user_ratings(user_id)
 
             k = int(like_perc * len(user_ratings)) + 1
-            user_likes = self.data.get_weighed_liked_movie_indices(user_id, biased)[:k]
+            user_likes = self.data.get_weighed_liked_movie_indices(user_id, biased)
+            if len(user_likes) == 0:
+                return user_index
+            user_likes = user_likes[:k]
             movie_vectors = np.array(
                 [self.movie_vectors[index] for (index, _, _) in user_likes]
             )
@@ -119,9 +122,10 @@ class Hybrid(Recommender_System):
             user_ratings = self.data.get_user_ratings(user_id, "train")
 
             k = int(like_perc * np.count_nonzero(user_ratings)) + 1
-            user_likes = self.data.get_liked_movies_indices(user_id, biased, "train")[
-                :k
-            ]
+            user_likes = self.data.get_liked_movies_indices(user_id, biased, "train")
+            if len(user_likes) == 0:
+                return user_index
+            user_likes = user_likes[:k]
 
             # Collect movie vectors and corresponding weights based on ratings
             movie_vectors = np.array(
