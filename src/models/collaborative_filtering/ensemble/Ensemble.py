@@ -1,6 +1,7 @@
 from numpy.typing import NDArray
 from data import Data
-from ..matrix_factorization import ALS, SGD
+from ..als import ALS
+from ..sgd import SGD
 from ..neighborhood_based import Neighborhood_Base
 import numpy as np
 from ..CF_Base import CF_Base

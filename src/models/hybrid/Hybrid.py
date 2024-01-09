@@ -42,33 +42,40 @@ class Hybrid(Recommender_System):
         self, items_features: NDArray[np.float64]
     ) -> NDArray[np.float64]:
         i_features = items_features
-        n_users, n_movies = self.data.interactions_train.shape
+        n_users, n_movies = self.train_set.shape
         combined_features = np.zeros((n_movies, len(i_features[0]) + n_users))
 
         for sim_index in range(i_features.shape[0]):
             movie_index = self.data.item_id_to_index[
                 self.sim_index_to_movie_id[sim_index]
             ]
-            movie_ratings = self.data.interactions_train_numpy[:, movie_index]
+            movie_ratings = self.train_set[:, movie_index]
             movie_features = i_features[sim_index]
             comb = movie_features.tolist() + movie_ratings.tolist()
             combined_features[movie_index] = comb
 
         return np.array(combined_features)
 
-    def fit(self, by_timestamp: bool, biased: bool, like_perc: float, silent=False):
+    def fit(
+        self, by_timestamp: bool, biased: bool, like_perc: float, silent=False, cv=False
+    ):
         """
         Fit the Tfid and NearestNeighbors models, then create the user profiles
         """
         self.is_fit = True
         self.is_biased = biased
-        self.np = Most_Popular(self.data).fit(silent)
+        self.np = Most_Popular(self.data).fit(silent, cv)
+        self.train_set = (
+            self.data.interactions_cv_train_numpy
+            if cv
+            else self.data.interactions_train_numpy
+        )
 
         item_features = self._extract_item_features()
         self.movie_vectors = self._combine_features(item_features)
         self.knn_model = NearestNeighbors(metric="cosine").fit(self.movie_vectors)
 
-        n_users = self.data.interactions_train.shape[0]
+        n_users = self.train_set.shape[0]
         self.cold_users = []
         self.user_profiles = []
 
@@ -148,11 +155,9 @@ class Hybrid(Recommender_System):
             return self.np.top_n(user_index, n).tolist()
 
         user_profile = self.user_profiles[user_index].reshape(1, -1)
-        already_watched_indices = csr_array(
-            self.data.interactions_train.getrow(user_index)
-        ).indices
+        already_watched_indices = csr_array(self.train_set[user_index, :]).indices
 
-        n_movies = self.data.interactions_train.shape[1]
+        n_movies = self.train_set.shape[1]
         max_neighbors = min(n + len(already_watched_indices), n_movies)
 
         neighbors = self.knn_model.kneighbors(user_profile, max_neighbors, False)

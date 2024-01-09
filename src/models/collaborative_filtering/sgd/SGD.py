@@ -1,12 +1,12 @@
 import numpy as np
 from numpy.typing import NDArray
 from data import Data
-from ..MF_Base import MF_Base
+from ..CF_Base import CF_Base
 from utils import RandomSingleton
 from tqdm.auto import tqdm
 
 
-class SGD(MF_Base):
+class SGD(CF_Base):
     """
     Matrix Factorization model which uses Stochastic Gradient Descent for training
     """
@@ -23,6 +23,7 @@ class SGD(MF_Base):
         batch_size: int = 16,
         lr_decay_factor: float = 0.6633333333333333,
         silent=False,
+        cv=False,
     ):
         """
         Mini batch SGD training algorithm
@@ -33,7 +34,10 @@ class SGD(MF_Base):
         self.reg = reg
         self.epochs = epochs
         self.batch_size = batch_size
-        num_users, num_items = self.data.interactions_train.shape
+        self.train_set = (
+            self.data.interactions_cv_train if cv else self.data.interactions_train
+        )
+        num_users, num_items = self.train_set.shape
 
         self.P = RandomSingleton.get_random_normal(
             loc=0, scale=0.1, size=(num_users, n_factors)
@@ -43,11 +47,7 @@ class SGD(MF_Base):
         )
 
         iterable_data = list(
-            zip(
-                self.data.interactions_train.row,
-                self.data.interactions_train.col,
-                self.data.interactions_train.data,
-            )
+            zip(self.train_set.row, self.train_set.col, self.train_set.data)
         )
 
         for _ in tqdm(
@@ -86,3 +86,9 @@ class SGD(MF_Base):
         norm = float(np.linalg.norm(gradient))
         if norm > 1.0:
             gradient /= norm
+
+    def predict(self, u: int, i: int) -> float:
+        if not self.is_fit:
+            raise RuntimeError("Model untrained, invoke fit before predicting")
+        prediction = np.dot(self.P[u, :], self.Q[i, :].T)
+        return np.clip(prediction, 1, 5)

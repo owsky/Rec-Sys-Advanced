@@ -8,14 +8,17 @@ class Most_Popular(Recommender_System):
     def __init__(self, data: Data):
         super().__init__(data, "Most Popular")
 
-    def fit(self, silent=False):
+    def fit(self, silent=False, cv=False):
         if not silent:
             print("Fitting Most Popular model")
         self.is_fit = True
         popularity = []
-        n_users, n_items = self.data.interactions_train.shape
+        self.train_set = (
+            self.data.interactions_cv_train if cv else self.data.interactions_train
+        )
+        n_users, n_items = self.train_set.shape
         for item_index in range(n_items):
-            item_ratings = csr_array(self.data.interactions_train.getcol(item_index))
+            item_ratings = csr_array(self.train_set.getcol(item_index))
             nz = item_ratings.count_nonzero()
             popularity.append(nz / n_users)
         self.popularity = np.array(popularity)

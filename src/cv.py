@@ -28,15 +28,13 @@ def cv(data: Data):
         "like_perc": np.linspace(0.01, 1.0, 100),
     }
     cb = Content_Based(data)
-    cb_results = cb.gridsearch_cv("top_n", cb_params_space, False)
-    cb.pretty_print_cv_results("top_n", cb_results)
+    cb_results = cb.gridsearch_cv("top_n", cb_params_space, True)
     cb_results = [x for x in cb_results if x[8]["by_timestamp"]]
     cb.pretty_print_cv_results("top_n", cb_results)
 
     hb_params_space = cb_params_space
     hb = Hybrid(data)
-    hb_results = hb.gridsearch_cv("top_n", hb_params_space, False)
-    hb.pretty_print_cv_results("top_n", hb_results)
+    hb_results = hb.gridsearch_cv("top_n", hb_params_space, True)
     hb_results = [x for x in hb_results if x[8]["by_timestamp"]]
     hb.pretty_print_cv_results("top_n", hb_results)
 

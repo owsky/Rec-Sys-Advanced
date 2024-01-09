@@ -4,7 +4,7 @@ from numpy.typing import NDArray
 import pandas as pd
 from pandas import DataFrame
 from scipy.sparse import coo_array, csr_array
-from utils import exponential_decay
+from utils import exponential_decay, k_fold_split
 
 
 class Data:
@@ -138,7 +138,7 @@ class Data:
         df = pd.read_csv(
             self.data_path + "ratings.csv",
             dtype={
-                "movie_id": "Int64",
+                "movieId": "Int64",
                 "userId": "Int64",
                 "rating": float,
                 "timestamp": "Int64",
@@ -153,6 +153,10 @@ class Data:
         self.interactions_train, self.interactions_test = self._create_interactions(
             df, shape, test_size
         )
+        self.interactions_cv_train, self.interactions_cv_val = k_fold_split(
+            self.interactions_train
+        )
+        self.interactions_cv_train_numpy = self.interactions_cv_train.toarray()
         self.interactions_train_numpy = self.interactions_train.toarray()
 
         (
@@ -226,13 +230,20 @@ class Data:
         )
 
     def get_user_ratings(
-        self, user_id: int, dataset: Literal["train", "test"]
+        self, user_id: int, dataset: Literal["train", "test", "train_cv", "val_cv"]
     ) -> NDArray[np.float64]:
         """
         Return the given user's ratings
         """
         user_index = self.user_id_to_index[user_id]
-        arr = self.interactions_train if dataset == "train" else self.interactions_test
+        if dataset == "train":
+            arr = self.interactions_train
+        elif dataset == "test":
+            arr = self.interactions_test
+        elif dataset == "train_cv":
+            arr = self.interactions_cv_train
+        elif dataset == "val_cv":
+            arr = self.interactions_cv_val
         return csr_array(arr.getrow(user_index)).toarray()[0]
 
     def get_weighed_user_ratings(self, user_id: int) -> list[tuple[int, float, float]]:
@@ -252,7 +263,10 @@ class Data:
         return [(tup[0], tup[1], weight) for tup, weight in zip(ratings, weights)]
 
     def get_liked_movies_indices(
-        self, user_id: int, biased: bool, dataset: Literal["train", "test"]
+        self,
+        user_id: int,
+        biased: bool,
+        dataset: Literal["train", "test", "train_cv", "val_cv"],
     ) -> list[int]:
         """
         Return the indices of movies liked by a given user

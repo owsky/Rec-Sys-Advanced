@@ -12,7 +12,7 @@ def unzip_file(zip_file_path, extract_to_path):
         zip_ref.extractall(extract_to_path)
 
 
-# Unzip t he ml-latest and ml-latest-small datasets
+# Unzip the ml-latest and ml-latest-small datasets
 unzip_file(os.path.join(script_directory, "ml-latest-small.zip"), script_directory)
 unzip_file(os.path.join(script_directory, "ml-latest.zip"), script_directory)
 

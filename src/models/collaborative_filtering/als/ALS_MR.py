@@ -2,14 +2,14 @@ from typing import Iterable, Literal
 from tqdm.auto import tqdm
 import pyspark
 from data import Data
-from ..MF_Base import MF_Base
+from ..CF_Base import CF_Base
 import numpy as np
 from pyspark import RDD, Accumulator, AccumulatorParam, SparkContext, SparkConf
 from utils import RandomSingleton
 from numpy.typing import NDArray
 
 
-class ALS_MR(MF_Base):
+class ALS_MR(CF_Base):
     """
     Concrete class for Map Reduce Alternating Least Squares recommender system
     """
@@ -17,7 +17,7 @@ class ALS_MR(MF_Base):
     def __init__(self, data: Data):
         super().__init__(data, "Alternating Least Squares")
 
-    def fit(self, silent=False, n_factors=10, epochs=10, reg=0.01):
+    def fit(self, silent=False, n_factors=10, epochs=10, reg=0.01, cv=False):
         class DictAccumulator(AccumulatorParam):
             """
             Custom dictionary accumulator, needed to propagate the factors updates across the cluster
@@ -42,6 +42,9 @@ class ALS_MR(MF_Base):
                 return currDict
 
         self.is_fit = True
+        self.train_set = (
+            self.data.interactions_cv_train if cv else self.data.interactions_train
+        )
 
         # Spark initialization
         conf = (
@@ -53,17 +56,11 @@ class ALS_MR(MF_Base):
         spark = SparkContext(conf=conf)
         spark.setLogLevel("ERROR")
 
-        n_users, n_items = self.data.interactions_train.shape
+        n_users, n_items = self.train_set.shape
 
         # Create and cache the ratings RDD
         ratings_RDD: RDD[tuple[int, int, float]] = spark.parallelize(
-            list(
-                zip(
-                    self.data.interactions_train.row,
-                    self.data.interactions_train.col,
-                    self.data.interactions_train.data,
-                )
-            )
+            list(zip(self.train_set.row, self.train_set.col, self.train_set.data))
         ).persist(storageLevel=pyspark.StorageLevel.MEMORY_AND_DISK_DESER)
 
         # Initialize the factors' dictionaries
@@ -139,3 +136,9 @@ class ALS_MR(MF_Base):
         ratings_RDD.unpersist()
         spark.stop()
         return self
+
+    def predict(self, u: int, i: int) -> float:
+        if not self.is_fit:
+            raise RuntimeError("Model untrained, invoke fit before predicting")
+        prediction = np.dot(self.P[u, :], self.Q[i, :].T)
+        return np.clip(prediction, 1, 5)

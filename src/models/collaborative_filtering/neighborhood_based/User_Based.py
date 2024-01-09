@@ -40,6 +40,3 @@ class User_Based(Neighborhood_Base):
         # Avoid division by zero
         if den != 0:
             return bias_u + float(num) / float(den)
-
-    def top_n(self, user_index: int, n: int) -> list[int]:
-        raise RuntimeError("Not implemented")

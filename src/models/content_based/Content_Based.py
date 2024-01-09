@@ -8,21 +8,26 @@ from ..Recommender_System import Recommender_System
 from utils import lists_str_join
 from joblib import Parallel, delayed
 from tqdm.auto import tqdm
-from models.non_personalized import Highest_Rated
+from models.non_personalized import Most_Popular
 
 
 class Content_Based(Recommender_System):
     def __init__(self, data: Data):
         super().__init__(data, "Content Based")
 
-    def fit(self, by_timestamp: bool, biased: bool, like_perc: float, silent=False):
+    def fit(
+        self, by_timestamp: bool, biased: bool, like_perc: float, silent=False, cv=False
+    ):
         """
         Fit the Tfid and NearestNeighbors models, then create the user profiles
         """
         self.is_fit = True
         self.is_biased = biased
         self.movies = self.data.movies
-        self.np = Highest_Rated(self.data).fit()
+        self.np = Most_Popular(self.data).fit(cv)
+        self.train_set = (
+            self.data.interactions_cv_train if cv else self.data.interactions_train
+        )
 
         self.vec_model = TfidfVectorizer(
             vocabulary=list(
@@ -47,7 +52,7 @@ class Content_Based(Recommender_System):
         m = self.vec_model.fit_transform(train)
         self.knn_model = NearestNeighbors(metric="cosine").fit(m)
 
-        n_users = self.data.interactions_train.shape[0]
+        n_users = self.train_set.shape[0]
         self.cold_users = []
         self.user_profiles = []
 
@@ -135,11 +140,9 @@ class Content_Based(Recommender_System):
             return self.np.top_n(user_index, n).tolist()
 
         user_profile = self.user_profiles[user_index]
-        already_watched_indices = csr_array(
-            self.data.interactions_train.getrow(user_index)
-        ).indices
+        already_watched_indices = csr_array(self.train_set.getrow(user_index)).indices
 
-        n_movies = self.data.interactions_train.shape[1]
+        n_movies = self.train_set.shape[1]
         max_neighbors = min(n + len(already_watched_indices), n_movies)
 
         neighbors = self.knn_model.kneighbors(user_profile, max_neighbors, False)

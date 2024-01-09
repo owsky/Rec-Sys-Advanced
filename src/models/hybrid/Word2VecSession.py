@@ -13,16 +13,19 @@ class Word2VecSession(Recommender_System):
     def __init__(self, data: Data):
         super().__init__(data, "Word2Vec Session")
 
-    def fit(self, vector_size: int, window: int, biased: bool, silent=False):
+    def fit(self, vector_size: int, window: int, biased: bool, silent=False, cv=False):
         if not silent:
             print("Fitting Word2Vec model")
-        self.model = self._train_word2vec_model(vector_size, window)
+        self.model = self._train_word2vec_model(vector_size, window, cv)
         self.is_fit = True
         self.is_biased = biased
         return self
 
-    def _train_word2vec_model(self, vector_size: int, window: int):
-        n_users = self.data.interactions_train.shape[0]
+    def _train_word2vec_model(self, vector_size: int, window: int, cv: bool):
+        self.train_set = (
+            self.data.interactions_cv_train if cv else self.data.interactions_train
+        )
+        n_users = self.train_set.shape[0]
         corpus = [self._get_str_liked(user_index) for user_index in range(n_users)]
 
         model = Word2Vec(

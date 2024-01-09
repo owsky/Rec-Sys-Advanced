@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 import math
 import os
-from typing import Callable, Literal
+from typing import Any, Callable, Literal
 import joblib
 import numpy as np
 from numpy.typing import NDArray
@@ -21,6 +21,7 @@ from utils import (
 )
 from tabulate import tabulate
 from joblib import Parallel, delayed
+from scipy.sparse import coo_array
 
 
 class Recommender_System(ABC):
@@ -61,7 +62,7 @@ class Recommender_System(ABC):
     def top_n(self, user_index: int, n: int) -> list[int]:
         pass
 
-    def accuracy_top_n(self, n=30, silent=False):
+    def accuracy_top_n(self, n=30, silent=False, cv=False):
         """
         Compute all accuracy metrics using the test set
         """
@@ -79,7 +80,7 @@ class Recommender_System(ABC):
         ):
             user_id = self.data.user_index_to_id[user_index]
             relevant = self.data.get_liked_movies_indices(
-                user_id, self.is_biased, "test"
+                user_id, self.is_biased, "val_cv" if cv else "test"
             )
             if len(relevant) < 2:
                 continue
@@ -103,16 +104,19 @@ class Recommender_System(ABC):
         return tuple(np.mean(metrics, axis=0))
 
     @abstractmethod
-    def _predict_all(self) -> list[tuple[int, int, int, float | None]]:
+    def _predict_all(
+        self, test_set: coo_array
+    ) -> list[tuple[int, int, int, float | None]]:
         pass
 
-    def _compute_prediction_errors(self, loss_function: Callable):
+    def _compute_prediction_errors(self, loss_function: Callable, cv: bool):
         """
         Given a test set and a loss function, compute the errors
         """
         if not self.is_fit:
             raise RuntimeError("Untrain model, invoke fit before predicting")
-        predictions = self._predict_all()
+        test_set = self.data.interactions_cv_val if cv else self.data.interactions_test
+        predictions = self._predict_all(test_set)
         errors = []
         for prediction in predictions:
             _, _, y_true, y_pred = prediction
@@ -120,18 +124,18 @@ class Recommender_System(ABC):
                 errors.append(loss_function(y_true - y_pred))
         return errors
 
-    def _accuracy_mae(self):
+    def _accuracy_mae(self, cv=False):
         """
         Compute the Mean Absolute Error of the trained model on a test set
         """
-        errors = self._compute_prediction_errors(lambda x: abs(x))
+        errors = self._compute_prediction_errors(lambda x: abs(x), cv)
         return np.mean(errors)
 
-    def _accuracy_rmse(self):
+    def _accuracy_rmse(self, cv=False):
         """
         Compute the Root Mean Squared Error of the trained model on a test set
         """
-        errors = self._compute_prediction_errors(lambda x: x**2)
+        errors = self._compute_prediction_errors(lambda x: x**2, cv)
         return math.sqrt(np.mean(errors))
 
     def pretty_print_accuracy_top_n(self, n=30):
@@ -160,37 +164,22 @@ class Recommender_System(ABC):
         )
         print(table)
 
-    def _do_cv(self, kind: Literal["prediction", "top_n"], **kwargs):
-        """
-        Fit the model with the given parameters and return the accuracy metrics
-        alongside the param combination
-        """
-        self.fit(silent=True, **kwargs)
-        if kind == "prediction":
-            mae = self._accuracy_mae()
-            rmse = self._accuracy_rmse()
-            metrics = (mae, rmse)
-        else:
-            metrics = self.accuracy_top_n(silent=True)
-        return [*metrics, kwargs]
-
     def pretty_print_cv_results(
-        self, kind: Literal["prediction", "top_n"], results: list
+        self, kind: Literal["prediction", "top_n"], results: list[dict[str, Any]]
     ):
         # Sort the results according to the task to optimize
         if kind == "prediction":
-            results.sort(key=lambda x: (x[0], x[1]))
             headers = self.prediction_metrics + ["Hyperparameters"]
         else:
-            results.sort(key=lambda x: x[5], reverse=True)
             headers = self.top_n_metrics + ["Hyperparameters"]
 
         # Show the best five results
         metric = headers[0] if kind == "prediction" else headers[5]
+        table = [(*res["test_metrics"], res["params"]) for res in results[:5]]
         print(f"\n{self.model_name} CV results sorted by {metric}:")
         print(
             tabulate(
-                results[:5],
+                table,
                 headers=headers,
                 tablefmt="grid",
                 floatfmt=".4f",
@@ -260,11 +249,27 @@ class Recommender_System(ABC):
             old_cb = joblib.parallel.BatchCompletionCallBack
             joblib.parallel.BatchCompletionCallBack = MyCallback
 
+            def do_cv(kind: Literal["prediction", "top_n"], **kwargs):
+                """
+                Fit the model with the given parameters and return the accuracy metrics
+                alongside the param combination
+                """
+                self.fit(silent=True, cv=True, **kwargs)
+                res: dict[str, Any] = {"params": kwargs}
+                if kind == "prediction":
+                    res["val_metrics"] = (
+                        self._accuracy_mae(cv=True),
+                        self._accuracy_rmse(cv=True),
+                    )
+                else:
+                    res["val_metrics"] = self.accuracy_top_n(silent=True, cv=True)
+                return res
+
             # Iterate over the batches
             for i, batch in enumerate(batches, start=start):
                 # Compute the crossvalidation for the current batch
                 for result in Parallel(n_jobs=-1, backend="loky")(
-                    delayed(self._do_cv)(kind, **comb) for comb in batch
+                    delayed(do_cv)(kind, **comb) for comb in batch
                 ):
                     # Add the results to the global results list
                     if result is None:
@@ -279,7 +284,36 @@ class Recommender_System(ABC):
         # Restore the original joblib callback
         joblib.parallel.BatchCompletionCallBack = old_cb
 
+        # Sort the results according to the task to optimize
+        if kind == "prediction":
+            results.sort(key=lambda x: (x["val_metrics"][0], x["val_metrics"][1]))
+        else:
+            results.sort(key=lambda x: x["val_metrics"][5], reverse=True)
+
+        # Only keep best five
+        results = results[:5]
+
+        def cv_final_results(kind: Literal["prediction", "top_n"], res: dict[str, Any]):
+            params = res["params"]
+            self.fit(silent=True, cv=False, **params)
+            if kind == "prediction":
+                mae = self._accuracy_mae(cv=False)
+                rmse = self._accuracy_rmse(cv=False)
+                metrics = (mae, rmse)
+            elif kind == "top_n":
+                metrics = self.accuracy_top_n(silent=True, cv=False)
+            res["test_metrics"] = metrics
+            return res
+
+        results_final = [
+            result
+            for result in Parallel(n_jobs=-1, backend="loky")(
+                delayed(cv_final_results)(kind, res) for res in results
+            )
+            if result is not None
+        ]
+
         if print_results:
-            self.pretty_print_cv_results(kind, results)
+            self.pretty_print_cv_results(kind, results_final)
 
         return results

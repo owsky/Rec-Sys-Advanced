@@ -16,3 +16,4 @@ from .generate_combinations import generate_combinations
 from .batch_generator import batch_generator
 from .dict_to_hash import dict_to_hash
 from .exp_range import exp_range_float, exp_range_int
+from .k_fold_split import k_fold_split

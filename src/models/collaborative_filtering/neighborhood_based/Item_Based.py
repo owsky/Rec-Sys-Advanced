@@ -40,19 +40,3 @@ class Item_Based(Neighborhood_Base):
         # Avoid division by zero
         if den != 0:
             return bias_i + float(num) / float(den)
-
-    def top_n(self, user_index: int, n=10) -> list[int]:
-        if not self.is_fit:
-            raise RuntimeError("Model untrained, fit first")
-        user_id = self.data.user_index_to_id[user_index]
-        ratings = self.data.get_user_ratings(user_id, "train")
-        unrated_indices = np.flatnonzero(ratings == 0)
-        predictions: list[tuple[int, float]] = []
-        for item_index in unrated_indices:
-            pred = self.predict(user_index, item_index)
-            if pred is not None:
-                predictions.append((item_index, pred))
-        return [
-            self.data.item_index_to_id[index]
-            for (index, _) in sorted(predictions, key=lambda x: x[1], reverse=True)
-        ][:n]

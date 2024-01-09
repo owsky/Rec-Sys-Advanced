@@ -23,7 +23,7 @@ class Neighborhood_Base(CF_Base):
         self.kind = kind
         self.similarity = similarity
 
-    def fit(self, silent=False):
+    def fit(self, silent=False, cv=False):
         """
         Compute the similarity matrix for the input data using either Pearson Correlation
         or Adjusted Cosine Similarity. Parameter kind determines whether user-user or item-item strategy
@@ -33,11 +33,16 @@ class Neighborhood_Base(CF_Base):
             f"Fitting the {self.kind}-based Neighborhood Filtering model with {self.similarity}..."
         )
         self.is_fit = True
+        self.train_set = (
+            self.data.interactions_cv_train_numpy
+            if cv
+            else self.data.interactions_train_numpy
+        )
 
         if self.kind == "user":
-            dim = self.data.interactions_train.shape[0]
+            dim = self.train_set.shape[0]
         elif self.kind == "item":
-            dim = self.data.interactions_train.shape[1]
+            dim = self.train_set.shape[1]
         else:
             raise RuntimeError("Wrong value for parameter kind")
 
@@ -88,11 +93,11 @@ class Neighborhood_Base(CF_Base):
         """
         # Extract the total user or item ratings
         if self.kind == "user":
-            ratings_i = self.data.interactions_train_numpy[i, :]
-            ratings_j = self.data.interactions_train_numpy[j, :]
+            ratings_i = self.train_set[i, :]
+            ratings_j = self.train_set[j, :]
         else:
-            ratings_i = self.data.interactions_train_numpy[:, i]
-            ratings_j = self.data.interactions_train_numpy[:, j]
+            ratings_i = self.train_set[:, i]
+            ratings_j = self.train_set[:, j]
 
         # Find the indices where both users have non-zero ratings
         common_ratings_mask = (ratings_i != 0) & (ratings_j != 0)
