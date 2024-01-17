@@ -81,7 +81,7 @@ class Hybrid(Recommender_System):
 
         results = [
             result
-            for result in Parallel(n_jobs=-1, backend="loky")(
+            for result in Parallel(n_jobs=1, backend="sequential")(
                 delayed(self._create_user_profile)(
                     user_index, by_timestamp, biased, like_perc
                 )

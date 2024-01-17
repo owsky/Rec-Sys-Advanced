@@ -3,16 +3,9 @@ from models import Content_Based
 
 
 def cb(data: Data):
-    # Content_Based(data).fit( False, False, 1.0).pretty_print_accuracy_top_n()
-    # Content_Based(data).fit( True, False, 1.0).pretty_print_accuracy_top_n()
-    # Content_Based(data).fit(True, True, 1.0).pretty_print_accuracy_top_n()
-    # Content_Based(data).fit( False, True, 0.4).pretty_print_accuracy_top_n()
-    # Content_Based(data).fit( True, True, 0.4).pretty_print_accuracy_top_n()
-    # model = Content_Based(data).fit( False, False, 1.0)
-    # model = Content_Based(data).fit( True, False, 1.0)
     model = Content_Based(data).fit(False, True, 0.3)
 
-    user_id = 330976
+    user_id = 1
     print(f"\nGetting recommendations for user {user_id}")
 
     n = 15

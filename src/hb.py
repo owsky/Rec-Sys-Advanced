@@ -3,32 +3,25 @@ from models import Hybrid, Word2VecSession
 
 
 def hb(data: Data):
-    # Hybrid(data).fit(False, False, 0.4).pretty_print_accuracy_top_n()
-    # Hybrid(data).fit(True, False, 0.4).pretty_print_accuracy_top_n()
-    # Hybrid(data).fit(False, True, 0.4).pretty_print_accuracy_top_n()
-    # Hybrid(data).fit(True, True, 0.4).pretty_print_accuracy_top_n()
-    # Hybrid(data).fit(False, False, 1.0).pretty_print_accuracy_top_n()
-    Hybrid(data).fit(False, False, 0.77).pretty_print_accuracy_top_n()
-    # Hybrid(data).fit(True, False, 1.0).pretty_print_accuracy_top_n()
-    # model = Hybrid(data).fit(False, False, 0.4)
-    # model = Hybrid(data).fit(True, True, 1.0)
+    hb_model = Hybrid(data).fit(False, False, 0.77)
+    hb_model.pretty_print_accuracy_top_n()
 
-    # user_id = 330976
-    # print(f"\nGetting recommendations for user {user_id}")
+    user_id = 1
+    print(f"\nGetting recommendations for user {user_id}")
 
-    # n = 15
-    # likes = data.get_liked_movies_indices(user_id, True, "train")[:n]
+    n = 15
+    likes = data.get_liked_movies_indices(user_id, True, "train")[:n]
 
-    # print(f"User {user_id} previously liked:")
-    # print(data.get_movie_from_indices(likes[:n]))
+    print(f"User {user_id} previously liked:")
+    print(data.get_movie_from_indices(likes[:n]))
 
-    # user_index = data.user_id_to_index[user_id]
-    # recs = model.top_n(user_index, n)
-    # print(f"Recommendations for user {user_id}")
-    # print(data.get_movies_from_ids(recs))
+    user_index = data.user_id_to_index[user_id]
+    recs = hb_model.top_n(user_index, n)
+    print(f"Recommendations for user {user_id}")
+    print(data.get_movies_from_ids(recs))
 
-    # model = Word2VecSession().fit(data)
-    # model.pretty_print_accuracy_top_n()
-    # recs = model.top_n(user_index, n)
-    # print(f"Recommendations for user {user_id}")
-    # print(data.get_movies_from_ids(recs))
+    w2v_model = Word2VecSession(data).fit(biased=True, window=5, vector_size=5)
+    w2v_model.pretty_print_accuracy_top_n()
+    recs = w2v_model.top_n(user_index, n)
+    print(f"Recommendations for user {user_id}")
+    print(data.get_movies_from_ids(recs))

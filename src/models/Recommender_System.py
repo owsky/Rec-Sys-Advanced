@@ -268,7 +268,7 @@ class Recommender_System(ABC):
             # Iterate over the batches
             for i, batch in enumerate(batches, start=start):
                 # Compute the crossvalidation for the current batch
-                for result in Parallel(n_jobs=-1, backend="loky")(
+                for result in Parallel(n_jobs=6, backend="loky")(
                     delayed(do_cv)(kind, **comb) for comb in batch
                 ):
                     # Add the results to the global results list
@@ -286,7 +286,7 @@ class Recommender_System(ABC):
 
         # Sort the results according to the task to optimize
         if kind == "prediction":
-            results.sort(key=lambda x: (x["val_metrics"][0], x["val_metrics"][1]))
+            results.sort(key=lambda x: (x["val_metrics"][1], x["val_metrics"][0]))
         else:
             results.sort(key=lambda x: x["val_metrics"][5], reverse=True)
 
@@ -312,6 +312,12 @@ class Recommender_System(ABC):
             )
             if result is not None
         ]
+
+        # Sort the results according to the task to optimize
+        if kind == "prediction":
+            results.sort(key=lambda x: (x["val_metrics"][1], x["val_metrics"][0]))
+        else:
+            results.sort(key=lambda x: x["val_metrics"][5], reverse=True)
 
         if print_results:
             self.pretty_print_cv_results(kind, results_final)

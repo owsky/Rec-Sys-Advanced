@@ -1,7 +1,6 @@
 from typing import Literal
 import numpy as np
 from data import Data
-import data
 from ..CF_Base import CF_Base
 from utils import RandomSingleton
 from tqdm.auto import tqdm

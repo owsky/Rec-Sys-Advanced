@@ -33,10 +33,7 @@ def cv(data: Data):
     cb.pretty_print_cv_results("top_n", cb_results)
 
     hb_params_space = cb_params_space
-    hb = Hybrid(data)
-    hb_results = hb.gridsearch_cv("top_n", hb_params_space, True)
-    hb_results = [x for x in hb_results if x[8]["by_timestamp"]]
-    hb.pretty_print_cv_results("top_n", hb_results)
+    Hybrid(data).gridsearch_cv("top_n", hb_params_space, True)
 
     w2v_params_space = {
         "vector_size": np.linspace(1, 100, 100, dtype=int),

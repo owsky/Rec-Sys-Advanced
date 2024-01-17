@@ -11,7 +11,7 @@ class RandomSingleton:
     _rng = None
 
     @staticmethod
-    def initialize(seed: int | None = None):
+    def initialize(seed: int | None = 42):
         if RandomSingleton._rng is None:
             random.seed(seed)
             RandomSingleton._rng = np.random.default_rng(seed)
